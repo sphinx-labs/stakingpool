@@ -14,28 +14,33 @@ contract DataTypes {
         
         bytes32 vaultId;   
         address creator;
+
         VaultDuration duration;     //uint8
-        uint40 endDate;             //uint40
+        uint40 endTime;             //uint40
+        uint16 allocPoints; 
 
         // staked assets
         uint8 nftStaked;            //2^8 -1 NFTs
-        uint256 tokenStaked;
+        uint128 tokenStaked;
+
+        VaultAccounting accounting;
+    }
+
+    struct VaultAccounting{
+        // fees
+        uint8 totalNftFee;
+        uint8 creatorFee;
 
         // index
         uint128 eps;
         uint128 vaultIndex;    
         uint128 lastUpdatedTimestamp;
-
-        // fees
-        uint8 totalNftFee;
-        uint8 creatorFee;
-        
+      
         // rewards
-        uint256 totalAccRewards;
-        uint256 accNftBoostRewards;
-        uint256 accCreatorRewards;      // accUserRewards?
-        uint256 bonusBall;
-
+        uint128 totalAccRewards;
+        uint128 accNftBoostRewards;
+        uint128 accCreatorRewards;      // accUserRewards?
+        uint128 bonusBall;
     }
 
     struct SubscriptionInfo {

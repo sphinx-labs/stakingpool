@@ -15,11 +15,14 @@ contract Pool {
     // IERC777 - NFT
     address public REALM_POINTS;
     address public REWARDS_VAULT;
-
+    
+    uint16 public constant vaultBaseAllocPoints = 100;    
+    
     uint8 public constant PRECISION = 18;    
+
     uint128 public immutable startTime;           // start time
     uint128 public immutable endTime;             // 120days from start time
-
+    
     // fixed unless rewards are topped up
     uint256 public poolEmissisonPerSecond;
     
@@ -27,6 +30,9 @@ contract Pool {
     uint128 public totalAllocPoints;
     uint128 public allocPointsLastUpdateTimestamp;
     
+
+    // EVENTS
+    event VaultCreated(address indexed creator, bytes32 indexed vaultId, DataTypes.VaultDuration indexed duration);
 
 //------------------------------------------------------------------------------
 
@@ -59,7 +65,7 @@ contract Pool {
         STAKED_TOKEN = stakedToken;
         REWARD_TOKEN = rewardToken;
         // NFT
-        RP_REGISTRY = realmPoints;
+        REALM_POINTS = realmPoints;
         REWARDS_VAULT = rewardsVault;
 
         // duration
@@ -80,11 +86,14 @@ contract Pool {
                                 EXTERNAL
     //////////////////////////////////////////////////////////////*/
 
-    function createVault(uint8 salt, DataTypes.VaultDuration duration) external {
+    ///@dev creates empty vault
+    function createVault(uint8 salt, DataTypes.VaultDuration duration, uint8 creatorFee, uint8 nftFee) external {
         //rp check
 
-        // period check
-        if (stakingEndTime < block.timestamp + (30 * uint8(duration))) {
+        // period check 
+        // Note:given that we maximally 120 days to now, should not overflow uint40
+        uint40 vaultEndTime = uint40(block.timestamp + (30 days * uint8(duration))); 
+        if (endTime <= vaultEndTime) {
             revert Errors.InsufficientTimeLeft();
         }
 
@@ -94,14 +103,33 @@ contract Pool {
             _generateVaultId(++salt);
         }
 
+        // calc. vault eps
+        vaultAllocPoints = vaultBaseAllocPoints * uint16(duration);        //duration multiplier: 30:1, 60:2, 90:3
+        uint128 currentTotalAllocPoints = totalAllocPoints += vaultAllocPoints;
+        vaultEps = vaultAllocPoints / currentTotalAllocPoints;
+
         // build vault
-        //Vault memory vault; 
-        //vault.vaultId = vaultId;
-        //vault.creator = msg.sender;
-        //vault.duration = duration;
+        DataTypes.Vault memory vault; 
+            vault.vaultId = vaultId;
+            vault.creator = msg.sender;
+            vault.duration = duration;
+            vault.endTime = vaultEndTime; 
+            vault.allocPoints = uint16(duration);        //vaultAllocPoints: 30:1, 60:2, 90:3
+            vault.accounting.eps = vaultEps;
+            vault.accounting.nftFee = nftFee;
+            vault.accounting.creatorFee = creatorFee;
+
+        vaults[vaultId] = vault;
+
+        emit VaultCreated(msg.sender, vaultId, duration); //emit totaLAllocPpoints updated?
     }  
 
+    function stakeTokens(uint256 amount) external {
+        // usual blah blah
 
+        //update vault
+        updateVault();
+    }
     
     /*//////////////////////////////////////////////////////////////
                                 INTERNAL

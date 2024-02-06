@@ -6,6 +6,8 @@
   script = "script"
   fuzz = { runs = 1_000 }
   evm_version = "paris"
+  via_ir = false
+
 
 
 [profile.ci]
