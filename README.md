@@ -1,66 +1,36 @@
-## Foundry
+# Problems
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+## LZ
 
-Foundry consists of:
+- blocking or nonblocking
+- what if txn fails on dstChain: failure remedy, mitigation, automatic relies
+- V1 vs/or V2
+- which V2 lib/repo?
+- postdeployment: monitoring dashboard where we can track metrics, health of system and so forth.
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+## Vault creation period
 
-## Documentation
+120 days from deployment vaults can be created.
+lastDay = startDate + 120 days.
+vault creation check: if vaultStart + duration exceed lastDay, reject creation
+> rewards are emitted for 120 days
 
-https://book.getfoundry.sh/
+## Calculating rewards and fees
 
-## Usage
+(Rewards and fees accounting)
+- need to track creator and NFT fees.
+- creator and NFT fees may vary.
+- how to track rewards to users and fees in a varying manner
 
-### Build
+## BATCHING
 
-```shell
-$ forge build
-```
+how to batch?
 
-### Test
 
-```shell
-$ forge test
-```
 
-### Format
 
-```shell
-$ forge fmt
-```
+# FOR CLARIFICATION
 
-### Gas Snapshots
+## NFT bonding curve
 
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+- cao
