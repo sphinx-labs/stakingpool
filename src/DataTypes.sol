@@ -17,6 +17,8 @@ contract DataTypes {
         VaultDuration duration;     //uint8
         //uint40 startTime;
         uint40 endTime;             //uint40
+        
+        uint128 multiplier;
         uint16 allocPoints; 
 
         // staked assets
@@ -54,6 +56,7 @@ contract DataTypes {
         // staked assets
         uint8 stakedNFTs;            //2^8 -1 NFTs
         uint128 stakedTokens;
+        uint16 allocPoints; 
 
         // rewards
         uint128 userIndex; 

@@ -2,9 +2,15 @@
 
 ## AllocPoints
 
+1 allocPoint = "1 token"
+
+cos of multiplier/boosting effects.
+
 ## Indexes
 
 ### wtf index
+
+poolIndex  = accRewardsPerAllocPoint
 
 ### Pool Index
 poolIndex reflects the rewardsAccruedPerAllocPoint since inception.
