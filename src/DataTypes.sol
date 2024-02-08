@@ -11,30 +11,29 @@ contract DataTypes {
     }
 
     struct Vault {
-        
         bytes32 vaultId;   
         address creator;
 
         VaultDuration duration;     //uint8
+        //uint40 startTime;
         uint40 endTime;             //uint40
         uint16 allocPoints; 
 
         // staked assets
-        uint8 nftStaked;            //2^8 -1 NFTs
-        uint128 tokenStaked;
+        uint8 stakedNFTs;            //2^8 -1 NFTs
+        uint128 stakedTokens;
 
         VaultAccounting accounting;
     }
 
     struct VaultAccounting{
         // fees
-        uint8 totalNftFee;
+        uint8 nftFee;
         uint8 creatorFee;
 
         // index
-        uint128 eps;
         uint128 vaultIndex;    
-        uint128 lastUpdatedTimestamp;
+        uint128 vaultLastUpdateTimestamp;
       
         // rewards
         uint128 totalAccRewards;
@@ -43,28 +42,22 @@ contract DataTypes {
         uint128 bonusBall;
     }
 
-    struct SubscriptionInfo {
-        bytes32 vaultId;
 
-        // staked assets
-        uint8 stakedNFTs; // no. of NFTs
-        uint128 stakedTokens;
-        
-        // rewards                
-        uint256 userIndex;
-        uint256 accRewards;
-        uint256 claimedRewards;
-
-        // fee
-        bool isCreator;
-
-        // misc        
-        uint128 startDate;
-        uint128 endDate;    //uint40
-    }
+    /*//////////////////////////////////////////////////////////////
+                                  USER
+    //////////////////////////////////////////////////////////////*/
 
     struct UserInfo {
-        uint256 count;
-        SubscriptionInfo[] subscriptions;
+        bytes32 vaultId;   
+        bool isCreator;
+
+        // staked assets
+        uint8 stakedNFTs;            //2^8 -1 NFTs
+        uint128 stakedTokens;
+
+        // rewards
+        uint128 userIndex; 
+        uint256 accRewards;
+        uint256 claimedRewards;
     }
 }
