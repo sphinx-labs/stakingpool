@@ -35,3 +35,10 @@ Similar to vaultIndex, the userIndex reflects the rewards captured by a specific
 
 I.e. Upon staking, userIndex is initially set to equal vaultIndex at the time of staking. This is to negate all prior earned rewards.
 Subsequently, each time the user engages in state-changing behaviour, his prior rewards up till that point is calculated and booked into accRewards.
+
+### Fees and rewards
+
+The userIndex is nett of fees.
+vaultIndex * fees(0.80) = userIndex.
+
+I am applying fees onto vaultIndex - which is denominated in 18 dp precision, as defined by our Moca token. So sensible to stick with that.

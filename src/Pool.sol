@@ -4,11 +4,14 @@ pragma solidity ^0.8.0;
 import {Errors} from './Errors.sol';
 import {DataTypes} from './DataTypes.sol';
 
+import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20, IERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+
 //accesscontrol
 
 //Note: inherit ERC20 to issue stkMOCA
-contract Pool { 
+contract Pool is ERC20 { 
+    using SafeERC20 for IERC20;
 
     // rp contract interface, token interface, NFT interface,
     IERC20 public STAKED_TOKEN;  
@@ -17,7 +20,8 @@ contract Pool {
     address public REALM_POINTS;
     address public REWARDS_VAULT;
     
-    uint16 public constant PRECISION = 18;    //token dp
+    uint256 public constant PRECISION = 18;    //token dp
+
     uint16 public constant vaultBaseAllocPoints = 100;    
     
     uint256 public immutable startTime;           // start time
@@ -38,6 +42,8 @@ contract Pool {
     event VaultIndexUpdated(bytes32 indexed vaultId, uint256 vaultIndex, uint256 vaultAccruedRewards);
     event UserIndexUpdated(address indexed user, bytes32 indexed vaultId, uint256 userIndex, uint256 userAccruedRewards);
 
+    event Staked(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
+
 //------------------------------------------------------------------------------
 
     // user can own one or more Vaults, each one with a bytes32 identifier
@@ -49,7 +55,8 @@ contract Pool {
 //------------------------------------------------------------------------------
 
 
-    constructor(IERC20 stakedToken, IERC20 rewardToken, address realmPoints, address rewardsVault, uint128 startTime_, uint128 duration, uint128 amount) payable {
+    constructor(IERC20 stakedToken, IERC20 rewardToken, address realmPoints, address rewardsVault, uint128 startTime_, uint128 duration, uint128 amount, 
+        string name, string symbol) ERC20(name, symbol) payable {
     
         STAKED_TOKEN = stakedToken;
         REWARD_TOKEN = rewardToken;
@@ -108,8 +115,8 @@ contract Pool {
             vault.endTime = vaultEndTime; 
 
             vault.allocPoints = vaultAllocPoints;        // vaultAllocPoints: 30:1, 60:2, 90:3
-            // fees
-            vault.accounting.nftFee = nftFee;
+            // fees: note: precision check
+            vault.accounting.totalNFTFee = nftFee;
             vault.accounting.creatorFee = creatorFee;
             // index
             vault.accounting.vaultIndex = uint128(newPoolIndex);
@@ -123,28 +130,44 @@ contract Pool {
         emit VaultCreated(msg.sender, vaultId, vaultEndTime, duration); //emit totaLAllocPpoints updated?
     }  
 
-    function stakeTokens(uint256 amount, bytes32 vaultId) external {
+    function stakeTokens(address onBehalfOf, uint256 amount, bytes32 vaultId) external {
         // usual blah blah checks
-
-        // is first stkera? bonusBalls?
+        require(amount > 0, "Invalid amount");
+        require(vaultId > 0, "Invalid vaultId");
 
         // get vault
-        DataTypes.Vault memory vault = vaults[vault];
+        DataTypes.Vault memory vault = vaults[vaultId];
+        DataTypes.UserInfo memory userInfo = users[user][vaultId];
         
+        // update indexes and book all prior rewards
+        _updateUserIndex(onBehalfOf, vaultId);
+
+        // update user's stakedTokens
+        userInfo.stakedTokens += amount;
+
         // calc. incoming allocPoints
-        uint256 multiplier = vault.stakedNFTs + vault.duration; //@note: anyhow
-        vault.allocPoints += amount * multiplier;
+        incomingAllocPoints += amount * vault.multiplier;
+        // update allocPoints: user, vault, pool
+        userInfo.allocPoints += incomingAllocPoints;
+        vault.allocPoints += incomingAllocPoints;
+        totalAllocPoints += incomingAllocPoints;
 
-        //updateState();
-        uint256 unbookedRewards = _updateState(msg.sender, );
+        // check if first stake: eligible for bonusBall
+        if (vault.stakedTokens == 0){
+            userInfo.accRewards = vault.accounting.bonusBall;
+        }
 
-        // update pool 
-        (uint256 newPoolIndex, uint256 currentTimestamp) = _updatePoolIndex();
-        //update totalAllocPoints 
-        //totalAllocPoints += vaultAllocPoints;
+        // mint stkMOCA
+        _mint(onBehalfOf, amount);
 
-        //update vault
-        _updateVault(vaultId);
+        // grab MOCA
+        STAKED_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
+
+        emit Staked(onBehalfOf, vaultId, amount);
+    }
+
+    function stakeNFT(uint256 tokenId, bytes32 vaultId) external {
+        
     }
     
     /*//////////////////////////////////////////////////////////////
@@ -195,13 +218,13 @@ contract Pool {
 
     ///@dev balance == allocPoints
     ///@dev vaultIndex/userIndex == userIndex
-    function _calculateRewards(uint256 allocPoints, uint256 poolIndex, uint256 userIndex) internal view returns (uint256) {
-        return (allocPoints * (poolIndex - userIndex)) / 10 ** PRECISION;
+    function _calculateRewards(uint256 allocPoints, uint256 currentIndex, uint256 priorIndex) internal view returns (uint256) {
+        return (allocPoints * (currentIndex - priorIndex)) / 10 ** PRECISION;
     }
 
     ///@dev called prior to affecting any state change to a vault
     ///@dev book prior rewards, update vaultIndex, totalAccRewards
-    function _updateVaultIndex(bytes32 vaultId) internal returns(uint256) {
+    function _updateVaultIndex(bytes32 vaultId) internal returns(uint256, uint256) {
         //1. called on vault state-change: stake, claimRewards
         //2. book prior rewards, before affecting statechange
         //3. vaulIndex = newPoolIndex
@@ -209,7 +232,7 @@ contract Pool {
         // cache: get vault
         DataTypes.Vault memory vault = vaults[vaultId];
 
-        // is vault mature? not mature dont update userIndex
+        // note: is vault mature? not mature dont update userIndex
 
         // get latest poolIndex
         (uint256 newPoolIndex, uint256 currentTimestamp) = _updatePoolIndex();
@@ -217,23 +240,30 @@ contract Pool {
         uint256 accruedRewards;
         if (vault.accounting.vaultIndex != newPoolIndex) {
             if (vault.stakedTokens > 0) {
-                // calc. prior unbooked rewards 
-                accruedRewards = _calculateRewards(vault.allocPoints, newPoolIndex, vault.accounting.vaultIndex);
-                
-                // book rewards
-                vault.accounting.totalAccRewards += accruedRewards;
-                
-            } else { // no tokens staked
 
                 // calc. prior unbooked rewards 
                 accruedRewards = _calculateRewards(vault.allocPoints, newPoolIndex, vault.accounting.vaultIndex);
+
+                // calc. fees
+                uint256 accCreatorFee = (accruedRewards * vault.accounting.creatorFee) / 10 ** PRECISION;
+                uint256 accTotalNFTFee = (accruedRewards * vault.accounting.totalNFTFee) / 10 ** PRECISION;  
+
+                // book rewards: total, creator, NFT
+                vault.accounting.totalAccRewards += accruedRewards;
+                vault.accounting.accCreatorRewards += accCreatorFee;
+                vault.accounting.accNftBoostRewards += accTotalNFTFee;
+                // rewardsAccPerNFT
+                vault.accounting.vaultNftIndex += (accTotalNFTFee / vault.stakedNFTs);
+
+            } else { // no tokens staked: no fees. only bonusBall
                 
+                // calc. prior unbooked rewards 
+                accruedRewards = _calculateRewards(vault.allocPoints, newPoolIndex, vault.accounting.vaultIndex);
+
                 // rewards booked to bonusBall: incentive for 1st staker
                 vault.accounting.bonusBall += accruedRewards;
                 vault.accounting.totalAccRewards += accruedRewards;
             }
-
-            //note: what about fees-rewards?
 
             //update vaultIndex + vault timestamp
             vault.accounting.vaultIndex = newPoolIndex;
@@ -244,43 +274,57 @@ contract Pool {
             
             emit VaultIndexUpdated(vaultId, newPoolIndex, vault.accounting.totalAccRewards);
 
-            return newPoolIndex;
+            return (newPoolIndex, vaultNftIndex);
         }
     }
 
     ///@dev called prior to affecting any state change to a user
+    ///@dev applies fees onto the vaulIndex to return the userIndex
     function _updateUserIndex(address user, bytes32 vaultId) internal returns (uint256) {
 
         // cache: get userInfo + vault
         DataTypes.Vault storage vault = vaults[vaultId];
         DataTypes.UserInfo memory userInfo = users[user][vaultId];
         
-        // get lestest vaultIndex
-        uint256 newVaultIndex = _updateVaultIndex(vaultId);
+        // get lestest vaultIndex + vaultNftIndex
+        (uint256 newVaultIndex, uint256 newUserNftIndex) = _updateVaultIndex(vaultId);
+
+        // apply fees 
+        uint256 newUserIndex = (newVaultIndex * vault.totalFees) / 10 ** PRECISION;
 
         //calc. user's allocPoints
         uint256 userAllocPoints = userInfo.stakedTokens * vault.multiplier;
 
-
         uint256 accruedRewards;
-        if(userInfo.userIndex != newVaultIndex) {
+        if(userInfo.userIndex != newUserIndex) {
             if(userInfo.stakedTokens > 0) {
-                accruedRewards = _calculateRewards(userAllocPoints, newVaultIndex, userInfo.userIndex);
-
+                // rewards from staking MOCA
+                accruedRewards = _calculateRewards(userAllocPoints, newUserIndex, userInfo.userIndex);
                 userInfo.accRewards += accRewards;
             }
-
-            userInfo.userIndex = newVaultIndex;
-
-            //update storage
-            users[user][vaultId] = userInfo;
-
-            emit UserIndexUpdated(user, vaultId, newVaultIndex, userInfo.accRewards);;
         }
+
+        if(userInfo.stakedNFTs > 0) {
+            if(userInfo.userNFTIndex != newUserNftIndex){
+                // total accrued rewards from staking NFTs
+                uint256 accNftBoostRewards = (newUserNftIndex - userInfo.userNFTIndex) * userInfo.stakedNFTs;
+                userInfo.accNftBoostRewards += accNftBoostRewards;
+            }
+        }
+
+        //update userIndex
+        userInfo.userIndex = newUserIndex;
+        userInfo.userNFTIndex = newUserNftIndex;
+
+        //update storage
+        users[user][vaultId] = userInfo;
+
+        emit UserIndexUpdated(user, vaultId, newUserIndex, userInfo.accRewards);
+    }
         
 
 
-    }
+    
 
 
     ///@dev Generate a vaultId. keccak256 is cheaper than using a counter with a SSTORE, even accounting for eventual collision retries.
@@ -329,7 +373,7 @@ Issue with mapping addr to dynamic array
         } else {
 
             uint256 nextVaultIndex; 
-            nextVaultIndex = ((emissisonPerSecond * timeDelta * 10 ** PRECISION) / totalBalance) + currentVaultIndex;
+            nextVaultIndex = ((emissisonPerSecond * timeDelta * 10 ** MOCA_PRECISION) / totalBalance) + currentVaultIndex;
         
             return nextVaultIndex;
         }

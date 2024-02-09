@@ -19,7 +19,7 @@ contract DataTypes {
         uint40 endTime;             //uint40
         
         uint128 multiplier;
-        uint16 allocPoints; 
+        uint128 allocPoints; 
 
         // staked assets
         uint8 stakedNFTs;            //2^8 -1 NFTs
@@ -29,14 +29,16 @@ contract DataTypes {
     }
 
     struct VaultAccounting{
-        // fees
-        uint8 nftFee;
-        uint8 creatorFee;
-
         // index
-        uint128 vaultIndex;    
-        uint128 vaultLastUpdateTimestamp;
-      
+        uint256 vaultIndex;    
+        uint256 vaultLastUpdateTimestamp;
+        uint256 vaultNftIndex;    //rewardsAccPerNFT
+        
+        // fees: pct values, with 18dp precision
+        uint256 totalFees;   
+        uint256 creatorFee;   
+        uint256 totalNFTFee;       
+            
         // rewards
         uint128 totalAccRewards;
         uint128 accNftBoostRewards;
@@ -56,11 +58,15 @@ contract DataTypes {
         // staked assets
         uint8 stakedNFTs;            //2^8 -1 NFTs
         uint128 stakedTokens;
-        uint16 allocPoints; 
+        uint128 allocPoints; 
 
-        // rewards
+        // indexes
         uint128 userIndex; 
+        uint128 userNFTIndex;
+
+        //rewards
         uint256 accRewards;
+        uint256 accNftBoostRewards; //only claimable on maturity
         uint256 claimedRewards;
     }
 }
