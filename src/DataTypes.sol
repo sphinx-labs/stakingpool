@@ -22,7 +22,7 @@ contract DataTypes {
         uint128 allocPoints; 
 
         // staked assets
-        uint8 stakedNFTs;            //2^8 -1 NFTs
+        uint8 stakedNfts;            //2^8 -1 NFTs
         uint128 stakedTokens;
 
         VaultAccounting accounting;
@@ -37,13 +37,13 @@ contract DataTypes {
         // fees: pct values, with 18dp precision
         uint256 totalFees;   
         uint256 creatorFee;   
-        uint256 totalNFTFee;       
+        uint256 totalNftFee;       
             
         // rewards
-        uint128 totalAccRewards;
-        uint128 accNftBoostRewards;
-        uint128 accCreatorRewards;      // accUserRewards?
-        uint128 bonusBall;
+        uint256 totalAccRewards;
+        uint256 accNftBoostRewards;
+        uint256 accCreatorRewards;      // accUserRewards?
+        uint256 bonusBall;
     }
 
 
@@ -56,13 +56,13 @@ contract DataTypes {
         bool isCreator;
 
         // staked assets
-        uint8 stakedNFTs;            //2^8 -1 NFTs
+        uint8 stakedNfts;            //2^8 -1 NFTs
         uint128 stakedTokens;
         uint128 allocPoints; 
 
         // indexes
-        uint128 userIndex; 
-        uint128 userNFTIndex;
+        uint256 userIndex; 
+        uint256 userNftIndex;
 
         //rewards
         uint256 accRewards;

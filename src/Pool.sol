@@ -56,7 +56,7 @@ contract Pool is ERC20 {
 
 
     constructor(IERC20 stakedToken, IERC20 rewardToken, address realmPoints, address rewardsVault, uint128 startTime_, uint128 duration, uint128 amount, 
-        string name, string symbol) ERC20(name, symbol) payable {
+        string memory name, string memory symbol) ERC20(name, symbol) payable {
     
         STAKED_TOKEN = stakedToken;
         REWARD_TOKEN = rewardToken;
@@ -116,7 +116,7 @@ contract Pool is ERC20 {
 
             vault.allocPoints = vaultAllocPoints;        // vaultAllocPoints: 30:1, 60:2, 90:3
             // fees: note: precision check
-            vault.accounting.totalNFTFee = nftFee;
+            vault.accounting.totalNftFee = nftFee;
             vault.accounting.creatorFee = creatorFee;
             // index
             vault.accounting.vaultIndex = uint128(newPoolIndex);
@@ -137,16 +137,16 @@ contract Pool is ERC20 {
 
         // get vault
         DataTypes.Vault memory vault = vaults[vaultId];
-        DataTypes.UserInfo memory userInfo = users[user][vaultId];
+        DataTypes.UserInfo memory userInfo = users[onBehalfOf][vaultId];
         
         // update indexes and book all prior rewards
         _updateUserIndex(onBehalfOf, vaultId);
 
         // update user's stakedTokens
-        userInfo.stakedTokens += amount;
+        userInfo.stakedTokens += uint128(amount);
 
         // calc. incoming allocPoints
-        incomingAllocPoints += amount * vault.multiplier;
+        uint128 incomingAllocPoints = uint128(amount * vault.multiplier);
         // update allocPoints: user, vault, pool
         userInfo.allocPoints += incomingAllocPoints;
         vault.allocPoints += incomingAllocPoints;
@@ -246,14 +246,14 @@ contract Pool is ERC20 {
 
                 // calc. fees
                 uint256 accCreatorFee = (accruedRewards * vault.accounting.creatorFee) / 10 ** PRECISION;
-                uint256 accTotalNFTFee = (accruedRewards * vault.accounting.totalNFTFee) / 10 ** PRECISION;  
+                uint256 accTotalNFTFee = (accruedRewards * vault.accounting.totalNftFee) / 10 ** PRECISION;  
 
                 // book rewards: total, creator, NFT
                 vault.accounting.totalAccRewards += accruedRewards;
                 vault.accounting.accCreatorRewards += accCreatorFee;
                 vault.accounting.accNftBoostRewards += accTotalNFTFee;
                 // rewardsAccPerNFT
-                vault.accounting.vaultNftIndex += (accTotalNFTFee / vault.stakedNFTs);
+                vault.accounting.vaultNftIndex += (accTotalNFTFee / vault.stakedNfts);
 
             } else { // no tokens staked: no fees. only bonusBall
                 
@@ -274,7 +274,7 @@ contract Pool is ERC20 {
             
             emit VaultIndexUpdated(vaultId, newPoolIndex, vault.accounting.totalAccRewards);
 
-            return (newPoolIndex, vaultNftIndex);
+            return (newPoolIndex, vault.accounting.vaultNftIndex);
         }
     }
 
@@ -290,7 +290,7 @@ contract Pool is ERC20 {
         (uint256 newVaultIndex, uint256 newUserNftIndex) = _updateVaultIndex(vaultId);
 
         // apply fees 
-        uint256 newUserIndex = (newVaultIndex * vault.totalFees) / 10 ** PRECISION;
+        uint256 newUserIndex = (newVaultIndex * vault.accounting.totalFees) / 10 ** PRECISION;
 
         //calc. user's allocPoints
         uint256 userAllocPoints = userInfo.stakedTokens * vault.multiplier;
@@ -300,21 +300,21 @@ contract Pool is ERC20 {
             if(userInfo.stakedTokens > 0) {
                 // rewards from staking MOCA
                 accruedRewards = _calculateRewards(userAllocPoints, newUserIndex, userInfo.userIndex);
-                userInfo.accRewards += accRewards;
+                userInfo.accRewards += accruedRewards;
             }
         }
 
-        if(userInfo.stakedNFTs > 0) {
-            if(userInfo.userNFTIndex != newUserNftIndex){
+        if(userInfo.stakedNfts > 0) {
+            if(userInfo.userNftIndex != newUserNftIndex){
                 // total accrued rewards from staking NFTs
-                uint256 accNftBoostRewards = (newUserNftIndex - userInfo.userNFTIndex) * userInfo.stakedNFTs;
+                uint256 accNftBoostRewards = (newUserNftIndex - userInfo.userNftIndex) * userInfo.stakedNfts;
                 userInfo.accNftBoostRewards += accNftBoostRewards;
             }
         }
 
         //update userIndex
         userInfo.userIndex = newUserIndex;
-        userInfo.userNFTIndex = newUserNftIndex;
+        userInfo.userNftIndex = newUserNftIndex;
 
         //update storage
         users[user][vaultId] = userInfo;
