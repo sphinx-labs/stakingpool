@@ -13,4 +13,6 @@ library Errors {
     error NonExistentVault(bytes32 vaultId);
     error VaultNotMatured(bytes32 vaultId);
 
+    error VaultMatured(bytes32 vaultId);
+
 }

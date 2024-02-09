@@ -52,7 +52,7 @@ contract DataTypes {
     //////////////////////////////////////////////////////////////*/
 
     struct UserInfo {
-        bytes32 vaultId;   
+        bytes32 vaultId;    
 
         // staked assets
         uint8 stakedNfts;            //2^8 -1 NFTs
