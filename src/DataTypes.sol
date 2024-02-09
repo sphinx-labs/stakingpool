@@ -42,7 +42,7 @@ contract DataTypes {
         // rewards
         uint256 totalAccRewards;
         uint256 accNftBoostRewards;
-        uint256 accCreatorRewards;      // accUserRewards?
+        uint256 accCreatorRewards;    
         uint256 bonusBall;
     }
 
@@ -53,7 +53,6 @@ contract DataTypes {
 
     struct UserInfo {
         bytes32 vaultId;   
-        bool isCreator;
 
         // staked assets
         uint8 stakedNfts;            //2^8 -1 NFTs
@@ -64,9 +63,15 @@ contract DataTypes {
         uint256 userIndex; 
         uint256 userNftIndex;
 
-        //rewards
+        //rewards: tokens
         uint256 accRewards;
-        uint256 accNftBoostRewards; //only claimable on maturity
         uint256 claimedRewards;
+
+        //rewards: NFTs
+        uint256 accNftBoostRewards; 
+        uint256 claimedNftRewards;
+
+        //rewards: creatorFees
+        uint256 claimedCreatorRewards;
     }
 }

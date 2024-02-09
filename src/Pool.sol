@@ -14,7 +14,9 @@ contract Pool is ERC20 {
     using SafeERC20 for IERC20;
 
     // rp contract interface, token interface, NFT interface,
-    IERC20 public STAKED_TOKEN;  
+    IERC20 public MOCA_TOKEN;  
+    IERC20 public LOCKED_NFT_TOKEN;  
+
     IERC20 public REWARD_TOKEN;
     // IERC777 - NFT
     address public REALM_POINTS;
@@ -42,7 +44,16 @@ contract Pool is ERC20 {
     event VaultIndexUpdated(bytes32 indexed vaultId, uint256 vaultIndex, uint256 vaultAccruedRewards);
     event UserIndexUpdated(address indexed user, bytes32 indexed vaultId, uint256 userIndex, uint256 userAccruedRewards);
 
-    event Staked(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
+    event StakedMoca(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
+    event StakedMocaNft(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
+
+    event RewardsAccrued(address indexed user, uint256 amount);
+    event NftFeesAccrued(address indexed user, uint256 amount);
+
+    event RewardsClaimed(bytes32 indexed vaultId, address indexed user, uint256 amount);
+    event CreatorRewardsClaimed(bytes32 indexed vaultId, address indexed creator, uint256 amount);
+    event NftRewardsClaimed(bytes32 indexed vaultId, address indexed creator, uint256 amount);
+
 
 //------------------------------------------------------------------------------
 
@@ -116,6 +127,7 @@ contract Pool is ERC20 {
 
             vault.allocPoints = vaultAllocPoints;        // vaultAllocPoints: 30:1, 60:2, 90:3
             // fees: note: precision check
+            vault.accounting.totalFees = nftFee + creatorFee;
             vault.accounting.totalNftFee = nftFee;
             vault.accounting.creatorFee = creatorFee;
             // index
@@ -130,15 +142,19 @@ contract Pool is ERC20 {
         emit VaultCreated(msg.sender, vaultId, vaultEndTime, duration); //emit totaLAllocPpoints updated?
     }  
 
-    function stakeTokens(address onBehalfOf, uint256 amount, bytes32 vaultId) external {
+    function stakeTokens(bytes32 vaultId, address onBehalfOf, uint256 amount) external {
         // usual blah blah checks
+        require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(amount > 0, "Invalid amount");
         require(vaultId > 0, "Invalid vaultId");
 
-        // get vault
+        // get vault + check if has been created
         DataTypes.Vault memory vault = vaults[vaultId];
-        DataTypes.UserInfo memory userInfo = users[onBehalfOf][vaultId];
+        if (vault.creator == address(0)) revert Errors.NonExistentVault(vaultId);
         
+        // get userInfo for said vault
+        DataTypes.UserInfo memory userInfo = users[onBehalfOf][vaultId];
+       
         // update indexes and book all prior rewards
         _updateUserIndex(onBehalfOf, vaultId);
 
@@ -161,15 +177,126 @@ contract Pool is ERC20 {
         _mint(onBehalfOf, amount);
 
         // grab MOCA
-        STAKED_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
+        MOCA_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
 
-        emit Staked(onBehalfOf, vaultId, amount);
+        emit StakedMoca(onBehalfOf, vaultId, amount);
     }
 
-    function stakeNFT(uint256 tokenId, bytes32 vaultId) external {
+    function stakeNfts(bytes32 vaultId, uint256 amount) external {
+        // usual blah blah checks
+        require(block.timestamp >= startTime, "Not started");       //note: do we want?
+        require(amount > 0, "Invalid amount");
+        require(vaultId > 0, "Invalid vaultId");
+
+        // get vault + check if has been created
+        DataTypes.Vault memory vault = vaults[vaultId];
+        if (vault.creator == address(0)) revert Errors.NonExistentVault(vaultId);
         
+        // get userInfo for said vault
+        DataTypes.UserInfo memory userInfo = users[onBehalfOf][vaultId];
+       
+        // update indexes and book all prior rewards
+        _updateUserIndex(onBehalfOf, vaultId);
+
+        vault.stakedNfts += amount;
+        
+        //note: mint stkMocaNft?
+        
+        // grab MOCA
+        LOCKED_NFT_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
+
+        emit StakedMocaNft(onBehalfOf, vaultId, amount);
+
+    }
+
+    function claimRewards(bytes32 vaultId, address onBehalfOf) external {
+        // usual blah blah checks
+        require(block.timestamp >= startTime, "Not started");       //note: do we want?
+        require(vaultId > 0, "Invalid vaultId");
+
+        // get vault + check if has been created
+        DataTypes.Vault memory vault = vaults[vaultId];         //storage point then cache?
+        if(vault.creator == address(0)) revert Errors.NonExistentVault(vaultId);
+        
+        // get userInfo for said vault
+        DataTypes.UserInfo memory userInfo = users[onBehalfOf][vaultId];
+
+        // update indexes and book all prior rewards
+        _updateUserIndex(onBehalfOf, vaultId);
+
+        uint256 totalUnclaimedRewards = userInfo.accRewards - userInfo.claimedRewards;
+        userInfo.claimedRewards += totalUnclaimedRewards;
+        
+        //update storage
+        users[user][vaultId] = userInfo;
+
+        emit RewardsClaimed(vaultId, onBehalfOf, totalUnclaimedRewards);
+
+        // transfer rewards to user, from rewardsVault
+        MOCA_TOKEN.safeTransferFrom(REWARDS_VAULT, onBehalfOf, totalUnclaimedRewards);
+    }
+
+    function claimFees(bytes32 vaultId, address onBehalfOf) external {
+        // usual blah blah checks
+        require(block.timestamp >= startTime, "Not started");       //note: do we want?
+        require(vaultId > 0, "Invalid vaultId");
+
+        // get vault + check if has been created
+        DataTypes.Vault memory vault = vaults[vaultId];         //storage point then cache?
+        if(vault.creator == address(0)) revert Errors.NonExistentVault(vaultId);
+        
+        // get userInfo for said vault
+        DataTypes.UserInfo memory userInfo = users[onBehalfOf][vaultId];
+
+        // update indexes and book all prior rewards
+        _updateUserIndex(onBehalfOf, vaultId);
+
+        uint256 totalUnclaimedRewards;
+        // collect creator fees
+        if(vault.creator == onBehalfOf) {
+            uint256 unclaimedCreatorRewards = (vault.accounting.accCreatorRewards - userInfo.claimedCreatorRewards);
+            totalUnclaimedRewards += unclaimedCreatorRewards;
+
+            userInfo.claimedCreatorRewards += unclaimedCreatorRewards;          
+
+            emit CreatorRewardsClaimed(vaultId, onBehalfOf, unclaimedCreatorRewards);
+        }
+        
+        // collect NFT fees
+        if(userInfo.stakedNfts > 0){
+            uint256 unclaimedNftRewards = (userInfo.accNftBoostRewards - userInfo.claimedNftRewards);
+            totalUnclaimedRewards += unclaimedNftRewards;
+
+            userInfo.claimedNftRewards += unclaimedNftRewards;
+         
+            emit NftRewardsClaimed(vaultId, onBehalfOf, unclaimedNftRewards);
+        }
+
+        //update storage
+        users[user][vaultId] = userInfo;
+
+        // transfer rewards to user, from rewardsVault
+        MOCA_TOKEN.safeTransferFrom(REWARDS_VAULT, onBehalfOf, totalUnclaimedRewards);
+    } 
+
+    function unstake(bytes32 vaultId) external {
+        // usual blah blah checks
+        require(block.timestamp >= startTime, "Not started");       //note: do we want?
+        require(vaultId > 0, "Invalid vaultId");
+
+        // get vault + check if has been created
+        DataTypes.Vault memory vault = vaults[vaultId];         //storage point then cache?
+        if(vault.creator == address(0)) revert Errors.NonExistentVault(vaultId);
+        
+        // check maturity
+        if(vault.endTime > block.timestamp) revert Errors.VaultNotMatured(vaultId);
+
+
     }
     
+    ///@dev to prevent index drift
+    function updateVault(bytes32 vaultId) external {}
+
     /*//////////////////////////////////////////////////////////////
                                 INTERNAL
     //////////////////////////////////////////////////////////////*/
@@ -301,6 +428,7 @@ contract Pool is ERC20 {
                 // rewards from staking MOCA
                 accruedRewards = _calculateRewards(userAllocPoints, newUserIndex, userInfo.userIndex);
                 userInfo.accRewards += accruedRewards;
+                emit RewardsAccrued(user, accruedRewards);
             }
         }
 
@@ -309,6 +437,7 @@ contract Pool is ERC20 {
                 // total accrued rewards from staking NFTs
                 uint256 accNftBoostRewards = (newUserNftIndex - userInfo.userNftIndex) * userInfo.stakedNfts;
                 userInfo.accNftBoostRewards += accNftBoostRewards;
+                emit NftFeesAccrued(user, accNftBoostRewards);
             }
         }
 
