@@ -142,17 +142,6 @@ contract Pool is ERC20 {
         emit VaultCreated(msg.sender, vaultId, vaultEndTime, duration); //emit totaLAllocPpoints updated?
     }  
 
-    function _cache(bytes32 vaultId, address onBehalfOf) internal returns(DataTypes.UserInfo memory, DataTypes.Vault memory){
-        
-        DataTypes.Vault memory vault = vaults[vaultId];
-        if (vault.creator == address(0)) revert Errors.NonExistentVault(vaultId);
-
-        // get userInfo for said vault
-        DataTypes.UserInfo memory userInfo = users[onBehalfOf][vaultId];
-
-        return (userInfo, vault);
-    }
-
     function stakeTokens(bytes32 vaultId, address onBehalfOf, uint256 amount) external {
         // usual blah blah checks
         require(block.timestamp >= startTime, "Not started");       //note: do we want?
@@ -168,17 +157,26 @@ contract Pool is ERC20 {
         // update user's stakedTokens
         userInfo.stakedTokens += uint128(amount);
 
-        // calc. incoming allocPoints
-        uint128 incomingAllocPoints = uint128(amount * vault.multiplier);
+        uint128 incomingAllocPoints;
+        if (vault.stakedTokens == 0){    // check if first stake: eligible for bonusBall
+            
+            // award bonusBall rewards
+            userInfo.accRewards = vault.accounting.bonusBall;
+
+            // calc. incoming allocPoints
+            uint128 incomingAllocPoints = uint128(amount * vault.multiplier) - vaultBaseAllocPoints;
+
+        } else {    // not first stake: bonusBall already booked and negated
+            
+            // calc. incoming allocPoints
+            uint128 incomingAllocPoints = uint128(amount * vault.multiplier);
+        }
+
         // update allocPoints: user, vault, pool
         userInfo.allocPoints += incomingAllocPoints;
-        vault.allocPoints += incomingAllocPoints;
+        vault.allocPoints += incomingAllocPoints;   
         totalAllocPoints += incomingAllocPoints;
 
-        // check if first stake: eligible for bonusBall
-        if (vault.stakedTokens == 0){
-            userInfo.accRewards = vault.accounting.bonusBall;
-        }
 
         // update storage
         vaults[vaultId] = vault;
@@ -354,14 +352,19 @@ contract Pool is ERC20 {
         //2. book prior rewards, before affecting statechange
         //3. vaulIndex = newPoolIndex
 
-        // note: is vault mature? not mature dont update userIndex
-        if(vault.endTime > block.timestamp) {
-            // don't update vault. but update pool?
+        // get latest poolIndex
+        (uint256 newPoolIndex, uint256 newPoolTimestamp) = _updatePoolIndex();
+
+        // note: is vault mature? not mature dont update vaultIndex(and therefore userIndex)
+        if(
+            newPoolTimestamp > vault.endTime                           // vault has matured. vaultIndex should no longer be updated. 
+            || newPoolTimestamp == vault.lastUpdateTimestamp           // vaultIndex has already been updated. no new rewards or fees to account for.
+        ) {
+            
+            return(vault);  // pool updated, but not vault.
         }
 
-        // get latest poolIndex
-        (uint256 newPoolIndex, uint256 currentTimestamp) = _updatePoolIndex();
-        
+//------------ calcualate staking rewards + fee accrued 
         uint256 accruedRewards;
         if (vault.accounting.vaultIndex != newPoolIndex) {
             if (vault.stakedTokens > 0) {
@@ -444,7 +447,16 @@ contract Pool is ERC20 {
     }
         
 
+    function _cache(bytes32 vaultId, address onBehalfOf) internal returns(DataTypes.UserInfo memory, DataTypes.Vault memory){
+        
+        DataTypes.Vault memory vault = vaults[vaultId];
+        if (vault.creator == address(0)) revert Errors.NonExistentVault(vaultId);
 
+        // get userInfo for said vault
+        DataTypes.UserInfo memory userInfo = users[onBehalfOf][vaultId];
+
+        return (userInfo, vault);
+    }
     
 
 

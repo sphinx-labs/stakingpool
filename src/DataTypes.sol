@@ -31,7 +31,6 @@ contract DataTypes {
     struct VaultAccounting{
         // index
         uint256 vaultIndex;    
-        uint256 vaultLastUpdateTimestamp;
         uint256 vaultNftIndex;    //rewardsAccPerNFT
         
         // fees: pct values, with 18dp precision
