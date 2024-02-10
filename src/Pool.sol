@@ -14,7 +14,7 @@ contract Pool is ERC20 {
     using SafeERC20 for IERC20;
 
     // rp contract interface, token interface, NFT interface,
-    IERC20 public MOCA_TOKEN;  
+    IERC20 public STAKED_TOKEN;  
     IERC20 public LOCKED_NFT_TOKEN;  
 
     IERC20 public REWARD_TOKEN;
@@ -46,14 +46,15 @@ contract Pool is ERC20 {
 
     event StakedMoca(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
     event StakedMocaNft(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
-    event Unstaked(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
+    event UnstakedMoca(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
+    event UnstakedMocaNft(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
 
     event RewardsAccrued(address indexed user, uint256 amount);
     event NftFeesAccrued(address indexed user, uint256 amount);
 
     event RewardsClaimed(bytes32 indexed vaultId, address indexed user, uint256 amount);
-    event CreatorRewardsClaimed(bytes32 indexed vaultId, address indexed creator, uint256 amount);
     event NftRewardsClaimed(bytes32 indexed vaultId, address indexed creator, uint256 amount);
+    event CreatorRewardsClaimed(bytes32 indexed vaultId, address indexed creator, uint256 amount);
 
 
 //------------------------------------------------------------------------------
@@ -165,12 +166,12 @@ contract Pool is ERC20 {
             userInfo.accRewards = vault.accounting.bonusBall;
 
             // calc. incoming allocPoints
-            uint128 incomingAllocPoints = uint128(amount * vault.multiplier) - vaultBaseAllocPoints;
+            incomingAllocPoints = uint128(amount * vault.multiplier) - vaultBaseAllocPoints;
 
         } else {    // not first stake: bonusBall already booked and negated
             
             // calc. incoming allocPoints
-            uint128 incomingAllocPoints = uint128(amount * vault.multiplier);
+            incomingAllocPoints = uint128(amount * vault.multiplier);
         }
 
         // update allocPoints: user, vault, pool
@@ -189,7 +190,7 @@ contract Pool is ERC20 {
         emit StakedMoca(onBehalfOf, vaultId, amount);
 
         // grab MOCA
-        MOCA_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
+        STAKED_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
     }
 
     function stakeNfts(bytes32 vaultId, uint256 amount) external {
@@ -235,7 +236,7 @@ contract Pool is ERC20 {
         emit RewardsClaimed(vaultId, onBehalfOf, totalUnclaimedRewards);
 
         // transfer rewards to user, from rewardsVault
-        MOCA_TOKEN.safeTransferFrom(REWARDS_VAULT, onBehalfOf, totalUnclaimedRewards);
+        REWARD_TOKEN.safeTransferFrom(REWARDS_VAULT, onBehalfOf, totalUnclaimedRewards);
     }
 
     function claimFees(bytes32 vaultId, address onBehalfOf) external {
@@ -274,10 +275,10 @@ contract Pool is ERC20 {
         users[user][vaultId] = userInfo;
 
         // transfer rewards to user, from rewardsVault
-        MOCA_TOKEN.safeTransferFrom(REWARDS_VAULT, onBehalfOf, totalUnclaimedRewards);
+        REWARD_TOKEN.safeTransferFrom(REWARDS_VAULT, onBehalfOf, totalUnclaimedRewards);
     } 
 
-    function unstake(bytes32 vaultId) external {
+    function unstakeAll(bytes32 vaultId, address onBehalfOf) external {
         // usual blah blah checks
         require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(vaultId > 0, "Invalid vaultId");
@@ -287,17 +288,108 @@ contract Pool is ERC20 {
 
         // check if vault has matured
         if(vault.vaultEndTime < block.timestamp) revert Errors.VaultNotMatured(vaultId);
+        if(userInfo_.stakedNfts == 0 || userInfo_.stakedNfts == 0) revert Errors.UserHasNothingStaked(vaultId, onBehalfOf);
+
+        // revert if 0 balances of tokens or nfts?
+        // if(userInfo_.stakedNfts < 0 || userInfo_.stakedTokens) revert 
 
         // update indexes and book all prior rewards
         (userInfo, vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
-        // burn stkMOCA
-        _burn(onBehalfOf, amount);
+        //get user balances
+        uint256 stakedNfts = userInfo.stakedNfts;
+        uint256 stakedTokens = userInfo.stakedTokens;
+        
+        //update balances: user + vault
+        if(stakedNfts > 0){
+            vault.stakedNfts -= stakedNfts;
+            userInfo.stakedNfts -= stakedNfts;
+            
+            //_burn NFT chips?
+            emit UnstakedMocaNft(onBehalfOf, vaultId, stakedNfts);       
+        }
 
-        emit Unstaked(onBehalfOf, vaultId, amount);       
+        if(stakedTokens > 0){
+            vault.stakedTokens -= stakedTokens;
+            userInfo.stakedNfts -= stakedTokens;
+            
+            // burn stkMOCA
+            _burn(onBehalfOf, stakedTokens);
+            emit UnstakedMoca(onBehalfOf, vaultId, stakedTokens);       
+        }
+
+        // update storage
+        vaults[vaultId] = vault;
+        users[onBehalfOf][vaultId] = userInfo;
+
+        // return principal MOCA + NFT chip
+        if(stakedNfts > 0) LOCKED_NFT_TOKEN.safeTransfer(onBehalfOf, stakedNfts);
+        if(stakedTokens > 0) STAKED_TOKEN.safeTransfer(onBehalfOf, stakedTokens); 
+    }
+
+    function unstakeNfts(bytes32 vaultId, address onBehalfOf) external {
+        // usual blah blah checks
+        require(block.timestamp >= startTime, "Not started");       //note: do we want?
+        require(vaultId > 0, "Invalid vaultId");
+
+        // get vault + check if has been created
+       (DataTypes.Vault memory vault_, DataTypes.UserInfo memory userInfo_) = _cache(vaultId, onBehalfOf);
+
+        // check if vault has matured
+        if(vault_.vaultEndTime < block.timestamp) revert Errors.VaultNotMatured(vaultId, onBehalfOf);
+        // revert if 0 balance
+        if(userInfo_.stakedNfts == 0) revert Errors.UserHasNoNftStaked(vaultId, onBehalfOf);
+
+        // update indexes and book all prior rewards
+        (userInfo, vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+        
+        //get user balances
+        uint256 stakedNfts = userInfo.stakedNfts;
+        
+        //update balances: user + vault
+        vault.stakedNfts -= stakedNfts;
+        userInfo.stakedNfts -= stakedNfts;
+            
+        //_burn NFT chips?
+        emit UnstakedMocaNft(onBehalfOf, vaultId, stakedNfts);   
+
+        // return NFT chips
+        LOCKED_NFT_TOKEN.safeTransfer(onBehalfOf, stakedNfts);
+    }
+
+    function unstakeTokens(bytes32 vaultId, address onBehalfOf) external {
+        // usual blah blah checks
+        require(block.timestamp >= startTime, "Not started");       //note: do we want?
+        require(vaultId > 0, "Invalid vaultId");
+
+        // get vault + check if has been created
+       (DataTypes.Vault memory vault_, DataTypes.UserInfo memory userInfo_) = _cache(vaultId, onBehalfOf);
+
+        // check if vault has matured
+        if(vault_.vaultEndTime < block.timestamp) revert Errors.VaultNotMatured(vaultId, onBehalfOf);
+        // revert if 0 balance
+        if(userInfo_.stakedTokens == 0) revert Errors.UserHasNoTokenStaked(vaultId, onBehalfOf);
+
+        // update indexes and book all prior rewards
+        (userInfo, vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+
+        //get user balances
+        uint256 stakedTokens = userInfo.stakedTokens;
+        
+        //update balances: user + vault
+        vault.stakedTokens -= stakedTokens;
+        userInfo.stakedNfts -= stakedTokens;
+        
+        // burn stkMOCA
+        _burn(onBehalfOf, stakedTokens);
+        emit UnstakedMoca(onBehalfOf, vaultId, stakedTokens);       
+    
+        // update storage
+        vaults[vaultId] = vault;
+        users[onBehalfOf][vaultId] = userInfo;
 
         // return principal MOCA
-        MOCA_TOKEN.safeTransfer(onBehalfOf, userInfo.stakedTokens);
+        STAKED_TOKEN.safeTransfer(onBehalfOf, stakedTokens); 
     }
     
     ///@dev to prevent index drift
@@ -360,7 +452,7 @@ contract Pool is ERC20 {
 
     ///@dev called prior to affecting any state change to a vault
     ///@dev book prior rewards, update vaultIndex, totalAccRewards
-    function _updateVaultIndex(DataTypes.Vault memory vault) internal returns(DataTypes.Vault memory vault) {
+    function _updateVaultIndex(DataTypes.Vault memory vault) internal returns(DataTypes.Vault memory) {
         //1. called on vault state-change: stake, claimRewards
         //2. book prior rewards, before affecting statechange
         //3. vaulIndex = newPoolIndex

@@ -10,9 +10,13 @@ pragma solidity ^0.8.0;
 library Errors {
 
     error InsufficientTimeLeft();
+
     error NonExistentVault(bytes32 vaultId);
-    error VaultNotMatured(bytes32 vaultId);
-
+    
     error VaultMatured(bytes32 vaultId);
-
+    error VaultNotMatured(bytes32 vaultId);
+    
+    error UserHasNoNftStaked(bytes32 vaultId, address user);
+    error UserHasNoTokenStaked(bytes32 vaultId, address user);
+    error UserHasNothingStaked(bytes32 vaultId, address user);
 }
