@@ -43,6 +43,8 @@ contract DataTypes {
         uint256 accNftBoostRewards;
         uint256 accCreatorRewards;    
         uint256 bonusBall;
+
+        uint256 claimedRewards;
     }
 
 

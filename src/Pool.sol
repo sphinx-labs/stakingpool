@@ -226,10 +226,13 @@ contract Pool is ERC20 {
         // update indexes and book all prior rewards
         (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
+        // update balances
         uint256 totalUnclaimedRewards = userInfo.accRewards - userInfo.claimedRewards;
         userInfo.claimedRewards += totalUnclaimedRewards;
-        
+        vault.accounting.claimedRewards += totalUnclaimedRewards;
+
         //update storage
+        vaults[vaultId] = vault;
         users[onBehalfOf][vaultId] = userInfo;
 
         emit RewardsClaimed(vaultId, onBehalfOf, totalUnclaimedRewards);
@@ -255,6 +258,7 @@ contract Pool is ERC20 {
             uint256 unclaimedCreatorRewards = (vault.accounting.accCreatorRewards - userInfo.claimedCreatorRewards);
             totalUnclaimedRewards += unclaimedCreatorRewards;
 
+            // update user balances
             userInfo.claimedCreatorRewards += unclaimedCreatorRewards;          
 
             emit CreatorRewardsClaimed(vaultId, onBehalfOf, unclaimedCreatorRewards);
@@ -264,13 +268,18 @@ contract Pool is ERC20 {
         if(userInfo.stakedNfts > 0){
             uint256 unclaimedNftRewards = (userInfo.accNftBoostRewards - userInfo.claimedNftRewards);
             totalUnclaimedRewards += unclaimedNftRewards;
-
+            
+            // update user balances
             userInfo.claimedNftRewards += unclaimedNftRewards;
          
             emit NftRewardsClaimed(vaultId, onBehalfOf, unclaimedNftRewards);
         }
+        
+        // update vault balances
+        vault.accounting.claimedRewards += totalUnclaimedRewards;
 
         //update storage
+        vaults[vaultId] = vault;
         users[onBehalfOf][vaultId] = userInfo;
 
         // transfer rewards to user, from rewardsVault
@@ -445,7 +454,7 @@ contract Pool is ERC20 {
 
     ///@dev balance == allocPoints
     ///@dev vaultIndex/userIndex == userIndex
-    function _calculateRewards(uint256 allocPoints, uint256 currentIndex, uint256 priorIndex) internal view returns (uint256) {
+    function _calculateRewards(uint256 allocPoints, uint256 currentIndex, uint256 priorIndex) internal pure returns (uint256) {
         return (allocPoints * (currentIndex - priorIndex)) / 10 ** PRECISION;
     }
 
@@ -462,7 +471,7 @@ contract Pool is ERC20 {
         // note: is vault mature? not mature dont update vaultIndex(and therefore userIndex)
         if(
             newPoolTimestamp > vault.endTime                           // vault has matured. vaultIndex should no longer be updated. 
-            || newPoolTimestamp == vault.lastUpdateTimestamp           // vaultIndex has already been updated. no new rewards or fees to account for.
+        //    || newPoolTimestamp == vault.lastUpdateTimestamp           // vaultIndex has already been updated. no new rewards or fees to account for.
         ) {
             
             return(vault);  // pool updated, but not vault.
@@ -549,7 +558,7 @@ contract Pool is ERC20 {
     }
         
 
-    function _cache(bytes32 vaultId, address onBehalfOf) internal returns(DataTypes.UserInfo memory, DataTypes.Vault memory){
+    function _cache(bytes32 vaultId, address onBehalfOf) internal view returns(DataTypes.UserInfo memory, DataTypes.Vault memory){
         
         DataTypes.Vault memory vault = vaults[vaultId];
         if (vault.creator == address(0)) revert Errors.NonExistentVault(vaultId);
