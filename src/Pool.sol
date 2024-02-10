@@ -134,7 +134,6 @@ contract Pool is ERC20 {
             vault.accounting.creatorFee = creatorFee;
             // index
             vault.accounting.vaultIndex = uint128(newPoolIndex);
-            vault.accounting.vaultLastUpdateTimestamp = uint128(currentTimestamp);
 
         vaults[vaultId] = vault;
 
@@ -151,10 +150,10 @@ contract Pool is ERC20 {
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
-       (DataTypes.Vault memory vault_, DataTypes.UserInfo memory userInfo_)= _cache(vaultId, onBehalfOf);
+       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
 
         // update indexes and book all prior rewards
-        (userInfo, vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
         // update user's stakedTokens
         userInfo.stakedTokens += uint128(amount);
@@ -193,17 +192,17 @@ contract Pool is ERC20 {
         STAKED_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
     }
 
-    function stakeNfts(bytes32 vaultId, uint256 amount) external {
+    function stakeNfts(bytes32 vaultId, address onBehalfOf, uint256 amount) external {
         // usual blah blah checks
         require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(amount > 0, "Invalid amount");
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
-       (DataTypes.Vault memory vault_, DataTypes.UserInfo memory userInfo_)= _cache(vaultId, onBehalfOf);
+       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
 
         // update indexes and book all prior rewards
-        (userInfo, vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
         vault.stakedNfts += amount;
         
@@ -222,16 +221,16 @@ contract Pool is ERC20 {
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
-       (DataTypes.Vault memory vault_, DataTypes.UserInfo memory userInfo_) = _cache(vaultId, onBehalfOf);
+       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
 
         // update indexes and book all prior rewards
-        (userInfo, vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
         uint256 totalUnclaimedRewards = userInfo.accRewards - userInfo.claimedRewards;
         userInfo.claimedRewards += totalUnclaimedRewards;
         
         //update storage
-        users[user][vaultId] = userInfo;
+        users[onBehalfOf][vaultId] = userInfo;
 
         emit RewardsClaimed(vaultId, onBehalfOf, totalUnclaimedRewards);
 
@@ -245,10 +244,10 @@ contract Pool is ERC20 {
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
-       (DataTypes.Vault memory vault_, DataTypes.UserInfo memory userInfo_) = _cache(vaultId, onBehalfOf);
+       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
 
         // update indexes and book all prior rewards
-        (userInfo, vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
         uint256 totalUnclaimedRewards;
         // collect creator fees
@@ -272,7 +271,7 @@ contract Pool is ERC20 {
         }
 
         //update storage
-        users[user][vaultId] = userInfo;
+        users[onBehalfOf][vaultId] = userInfo;
 
         // transfer rewards to user, from rewardsVault
         REWARD_TOKEN.safeTransferFrom(REWARDS_VAULT, onBehalfOf, totalUnclaimedRewards);
@@ -284,17 +283,17 @@ contract Pool is ERC20 {
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
-       (DataTypes.Vault memory vault_, DataTypes.UserInfo memory userInfo_) = _cache(vaultId, onBehalfOf);
+       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
 
         // check if vault has matured
-        if(vault.vaultEndTime < block.timestamp) revert Errors.VaultNotMatured(vaultId);
+        if(vault_.endTime < block.timestamp) revert Errors.VaultNotMatured(vaultId);
         if(userInfo_.stakedNfts == 0 || userInfo_.stakedNfts == 0) revert Errors.UserHasNothingStaked(vaultId, onBehalfOf);
 
         // revert if 0 balances of tokens or nfts?
         // if(userInfo_.stakedNfts < 0 || userInfo_.stakedTokens) revert 
 
         // update indexes and book all prior rewards
-        (userInfo, vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
         //get user balances
         uint256 stakedNfts = userInfo.stakedNfts;
@@ -333,15 +332,15 @@ contract Pool is ERC20 {
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
-       (DataTypes.Vault memory vault_, DataTypes.UserInfo memory userInfo_) = _cache(vaultId, onBehalfOf);
+       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
 
         // check if vault has matured
-        if(vault_.vaultEndTime < block.timestamp) revert Errors.VaultNotMatured(vaultId, onBehalfOf);
+        if(vault_.endTime < block.timestamp) revert Errors.VaultNotMatured(vaultId);
         // revert if 0 balance
         if(userInfo_.stakedNfts == 0) revert Errors.UserHasNoNftStaked(vaultId, onBehalfOf);
 
         // update indexes and book all prior rewards
-        (userInfo, vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
         
         //get user balances
         uint256 stakedNfts = userInfo.stakedNfts;
@@ -363,15 +362,15 @@ contract Pool is ERC20 {
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
-       (DataTypes.Vault memory vault_, DataTypes.UserInfo memory userInfo_) = _cache(vaultId, onBehalfOf);
+       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
 
         // check if vault has matured
-        if(vault_.vaultEndTime < block.timestamp) revert Errors.VaultNotMatured(vaultId, onBehalfOf);
+        if(vault_.endTime < block.timestamp) revert Errors.VaultNotMatured(vaultId);
         // revert if 0 balance
         if(userInfo_.stakedTokens == 0) revert Errors.UserHasNoTokenStaked(vaultId, onBehalfOf);
 
         // update indexes and book all prior rewards
-        (userInfo, vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
         //get user balances
         uint256 stakedTokens = userInfo.stakedTokens;
@@ -497,11 +496,10 @@ contract Pool is ERC20 {
                 vault.accounting.totalAccRewards += accruedRewards;
             }
 
-            //update vaultIndex + vault timestamp
+            //update vaultIndex
             vault.accounting.vaultIndex = newPoolIndex;
-            vault.accounting.vaultLastUpdateTimestamp = currentTimestamp;
             
-            emit VaultIndexUpdated(vaultId, newPoolIndex, vault.accounting.totalAccRewards);
+            emit VaultIndexUpdated(vault.vaultId, newPoolIndex, vault.accounting.totalAccRewards);
 
             return vault;
         }

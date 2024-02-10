@@ -18,12 +18,12 @@ contract DataTypes {
         //uint40 startTime;
         uint40 endTime;             //uint40
         
-        uint128 multiplier;
-        uint128 allocPoints; 
+        uint256 multiplier;
+        uint256 allocPoints; 
 
         // staked assets
-        uint8 stakedNfts;            //2^8 -1 NFTs
-        uint128 stakedTokens;
+        uint256 stakedNfts;            //2^8 -1 NFTs
+        uint256 stakedTokens;
 
         VaultAccounting accounting;
     }
@@ -54,9 +54,9 @@ contract DataTypes {
         bytes32 vaultId;    
 
         // staked assets
-        uint8 stakedNfts;            //2^8 -1 NFTs
-        uint128 stakedTokens;
-        uint128 allocPoints; 
+        uint256 stakedNfts;            //2^8 -1 NFTs
+        uint256 stakedTokens;
+        uint256 allocPoints; 
 
         // indexes
         uint256 userIndex; 
@@ -74,3 +74,5 @@ contract DataTypes {
         uint256 claimedCreatorRewards;
     }
 }
+
+// Note: could I do something with vault.lastUpdateTimestamp wrt to updatingUserIndex?
