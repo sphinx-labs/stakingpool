@@ -46,6 +46,7 @@ contract Pool is ERC20 {
 
     event StakedMoca(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
     event StakedMocaNft(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
+    event Unstaked(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
 
     event RewardsAccrued(address indexed user, uint256 amount);
     event NftFeesAccrued(address indexed user, uint256 amount);
@@ -185,10 +186,10 @@ contract Pool is ERC20 {
         // mint stkMOCA
         _mint(onBehalfOf, amount);
 
+        emit StakedMoca(onBehalfOf, vaultId, amount);
+
         // grab MOCA
         MOCA_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
-
-        emit StakedMoca(onBehalfOf, vaultId, amount);
     }
 
     function stakeNfts(bytes32 vaultId, uint256 amount) external {
@@ -206,12 +207,12 @@ contract Pool is ERC20 {
         vault.stakedNfts += amount;
         
         //note: mint stkMocaNft?
-        
-        // grab MOCA
-        LOCKED_NFT_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
+
 
         emit StakedMocaNft(onBehalfOf, vaultId, amount);
 
+        // grab MOCA
+        LOCKED_NFT_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
     }
 
     function claimRewards(bytes32 vaultId, address onBehalfOf) external {
@@ -220,7 +221,7 @@ contract Pool is ERC20 {
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
-       (DataTypes.Vault memory vault_, DataTypes.UserInfo memory userInfo_)= _cache(vaultId, onBehalfOf);
+       (DataTypes.Vault memory vault_, DataTypes.UserInfo memory userInfo_) = _cache(vaultId, onBehalfOf);
 
         // update indexes and book all prior rewards
         (userInfo, vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
@@ -284,14 +285,26 @@ contract Pool is ERC20 {
         // get vault + check if has been created
        (DataTypes.Vault memory vault_, DataTypes.UserInfo memory userInfo_) = _cache(vaultId, onBehalfOf);
 
+        // check if vault has matured
+        if(vault.vaultEndTime < block.timestamp) revert Errors.VaultNotMatured(vaultId);
+
         // update indexes and book all prior rewards
         (userInfo, vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
-        
 
+        // burn stkMOCA
+        _burn(onBehalfOf, amount);
+
+        emit Unstaked(onBehalfOf, vaultId, amount);       
+
+        // return principal MOCA
+        MOCA_TOKEN.safeTransfer(onBehalfOf, userInfo.stakedTokens);
     }
     
     ///@dev to prevent index drift
-    function updateVault(bytes32 vaultId) external {}
+    function updateVault(bytes32 vaultId) external {
+        DataTypes.Vault memory vault = vaults[vaultId];
+        _updateVaultIndex(vault);
+    }
 
     /*//////////////////////////////////////////////////////////////
                                 INTERNAL
@@ -364,7 +377,6 @@ contract Pool is ERC20 {
             return(vault);  // pool updated, but not vault.
         }
 
-//------------ calcualate staking rewards + fee accrued 
         uint256 accruedRewards;
         if (vault.accounting.vaultIndex != newPoolIndex) {
             if (vault.stakedTokens > 0) {
