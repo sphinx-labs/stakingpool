@@ -1,5 +1,10 @@
 # Explainoooor
 
+## Dependencies
+
+forge install  openzeppelin/openzeppelin-contracts@v5.0.1
+
+
 ## AllocPoints
 
 1 allocPoint = "1 token"

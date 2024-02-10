@@ -8,9 +8,11 @@ import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20, IERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
 //accesscontrol
+import {Pausable} from "openzeppelin-contracts/contracts/utils/Pausable.sol";
+import {Ownable2Step} from  "openzeppelin-contracts/contracts/access/Ownable2Step.sol";
 
 //Note: inherit ERC20 to issue stkMOCA
-contract Pool is ERC20 { 
+contract Pool is ERC20, Pausable, Ownable2Step { 
     using SafeERC20 for IERC20;
 
     // rp contract interface, token interface, NFT interface,
@@ -96,7 +98,7 @@ contract Pool is ERC20 {
     //////////////////////////////////////////////////////////////*/
 
     ///@dev creates empty vault
-    function createVault(uint8 salt, DataTypes.VaultDuration duration, uint8 creatorFee, uint8 nftFee) external {
+    function createVault(uint8 salt, DataTypes.VaultDuration duration, uint8 creatorFee, uint8 nftFee) external whenNotPaused {
         //rp check
 
         // period check 
@@ -143,7 +145,7 @@ contract Pool is ERC20 {
         emit VaultCreated(msg.sender, vaultId, vaultEndTime, duration); //emit totaLAllocPpoints updated?
     }  
 
-    function stakeTokens(bytes32 vaultId, address onBehalfOf, uint256 amount) external {
+    function stakeTokens(bytes32 vaultId, address onBehalfOf, uint256 amount) external whenNotPaused {
         // usual blah blah checks
         require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(amount > 0, "Invalid amount");
@@ -192,7 +194,7 @@ contract Pool is ERC20 {
         STAKED_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
     }
 
-    function stakeNfts(bytes32 vaultId, address onBehalfOf, uint256 amount) external {
+    function stakeNfts(bytes32 vaultId, address onBehalfOf, uint256 amount) external whenNotPaused {
         // usual blah blah checks
         require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(amount > 0, "Invalid amount");
@@ -215,7 +217,7 @@ contract Pool is ERC20 {
         LOCKED_NFT_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
     }
 
-    function claimRewards(bytes32 vaultId, address onBehalfOf) external {
+    function claimRewards(bytes32 vaultId, address onBehalfOf) external whenNotPaused {
         // usual blah blah checks
         require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(vaultId > 0, "Invalid vaultId");
@@ -241,7 +243,7 @@ contract Pool is ERC20 {
         REWARD_TOKEN.safeTransferFrom(REWARDS_VAULT, onBehalfOf, totalUnclaimedRewards);
     }
 
-    function claimFees(bytes32 vaultId, address onBehalfOf) external {
+    function claimFees(bytes32 vaultId, address onBehalfOf) external whenNotPaused {
         // usual blah blah checks
         require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(vaultId > 0, "Invalid vaultId");
@@ -286,7 +288,7 @@ contract Pool is ERC20 {
         REWARD_TOKEN.safeTransferFrom(REWARDS_VAULT, onBehalfOf, totalUnclaimedRewards);
     } 
 
-    function unstakeAll(bytes32 vaultId, address onBehalfOf) external {
+    function unstakeAll(bytes32 vaultId, address onBehalfOf) external whenNotPaused {
         // usual blah blah checks
         require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(vaultId > 0, "Invalid vaultId");
@@ -335,7 +337,7 @@ contract Pool is ERC20 {
         if(stakedTokens > 0) STAKED_TOKEN.safeTransfer(onBehalfOf, stakedTokens); 
     }
 
-    function unstakeNfts(bytes32 vaultId, address onBehalfOf) external {
+    function unstakeNfts(bytes32 vaultId, address onBehalfOf) external whenNotPaused {
         // usual blah blah checks
         require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(vaultId > 0, "Invalid vaultId");
@@ -365,7 +367,7 @@ contract Pool is ERC20 {
         LOCKED_NFT_TOKEN.safeTransfer(onBehalfOf, stakedNfts);
     }
 
-    function unstakeTokens(bytes32 vaultId, address onBehalfOf) external {
+    function unstakeTokens(bytes32 vaultId, address onBehalfOf) external whenNotPaused {
         // usual blah blah checks
         require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(vaultId > 0, "Invalid vaultId");
@@ -401,10 +403,12 @@ contract Pool is ERC20 {
     }
     
     ///@dev to prevent index drift
-    function updateVault(bytes32 vaultId) external {
+    function updateVault(bytes32 vaultId) external whenNotPaused {
         DataTypes.Vault memory vault = vaults[vaultId];
         _updateVaultIndex(vault);
     }
+
+//------------------------------------------------------------------------------
 
     /*//////////////////////////////////////////////////////////////
                                 INTERNAL
@@ -576,6 +580,31 @@ contract Pool is ERC20 {
         return bytes32(keccak256(abi.encode(msg.sender, block.timestamp, salt)));
     }
 
+//------------------------------------------------------------------------------
+
+    /*//////////////////////////////////////////////////////////////
+                            POOL MANAGEMENT
+    //////////////////////////////////////////////////////////////*/
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    ///@dev withdraw only principal. withdraw principal + plus fees to date
+    function emergencyWithdraw() external {}
+
+
+    ///@dev addRewards, duration MAY be extended
+    function addRewards(uint256 amount, uint256 ) external onlyOwner {
+
+    }
+    
+    ///@dev extend staking duration. eps will be diluted
+    function extendDuration() external onlyOwner {}
 
 }
 
