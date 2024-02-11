@@ -3,6 +3,28 @@ pragma solidity ^0.8.0;
 
 contract DataTypes {
 
+    /*//////////////////////////////////////////////////////////////
+                                  POOL
+    //////////////////////////////////////////////////////////////*/
+
+    struct PoolAccounting {
+    // rewards: x
+    uint256 totalAllocPoints;                // totalBalanceBoosted
+    uint256 emissisonPerSecond;           
+  
+    // rewards: y
+    uint256 poolIndex;                       // rewardsAccPerAllocPoint (to date) || rewards are booked into index
+    uint256 poolLastUpdateTimeStamp;  
+    
+    // for updating emissions
+    uint256 totalPoolRewards;                // prevent ddos rewards 
+    uint256 totalPoolRewardsEmitted;         // prevent ddos rewards vault
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                 VAULT
+    //////////////////////////////////////////////////////////////*/
+
     enum VaultDuration{
         NONE,       //0
         THIRTY,     //1

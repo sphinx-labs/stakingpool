@@ -11,6 +11,9 @@ import {SafeERC20, IERC20} from "openzeppelin-contracts/contracts/token/ERC20/ut
 import {Pausable} from "openzeppelin-contracts/contracts/utils/Pausable.sol";
 import {Ownable2Step} from  "openzeppelin-contracts/contracts/access/Ownable2Step.sol";
 
+// interfaces
+import {IRewardsVault} from "./interfaces/IRewardsVault.sol";
+
 //Note: inherit ERC20 to issue stkMOCA
 contract Pool is ERC20, Pausable, Ownable2Step { 
     using SafeERC20 for IERC20;
@@ -25,20 +28,16 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     address public REWARDS_VAULT;
     
     uint256 public constant PRECISION = 18;    //token dp
-
     uint16 public constant vaultBaseAllocPoints = 100;    
     
     uint256 public immutable startTime;           // start time
-    uint256 public immutable endTime;             // 120days from start time
-     
-    // rewards: x
-    //uint256 public totalStakedTokens;
-    uint256 public totalAllocPoints;                // totalBalanceBoosted
-    uint256 public poolEmissisonPerSecond;              // if top-up, can change 
-    
-    // rewards: y
-    uint256 public poolIndex;                       // rewardsAccPerAllocPoint (to date) || rewards are booked into index
-    uint256 public poolLastUpdateTimeStamp;
+    uint256 public endTime;                       // allow extension staking period
+
+    uint256 public isFrozen;
+
+    // Pool Accounting
+    DataTypes.PoolAccounting public pool;
+ 
 
     // EVENTS
     event VaultCreated(address indexed creator, bytes32 indexed vaultId, uint40 indexed endTime, DataTypes.VaultDuration duration);
@@ -58,8 +57,10 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     event NftRewardsClaimed(bytes32 indexed vaultId, address indexed creator, uint256 amount);
     event CreatorRewardsClaimed(bytes32 indexed vaultId, address indexed creator, uint256 amount);
 
+    event DistributionUpdated(uint256 indexed newPoolEPS, uint256 indexed newEndTime);
 
-//------------------------------------------------------------------------------
+
+//-------------------------------mappings-------------------------------------------
 
     // user can own one or more Vaults, each one with a bytes32 identifier
     mapping(bytes32 vaultId => DataTypes.Vault vault) public vaults;              
@@ -67,7 +68,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     // Tracks unclaimed rewards accrued for each user: user -> vaultId -> userInfo
     mapping(address user => mapping (bytes32 vaultId => DataTypes.UserInfo userInfo)) public users;
 
-//------------------------------------------------------------------------------
+//-------------------------------external------------------------------------------
 
 
     constructor(IERC20 stakedToken, IERC20 rewardToken, address realmPoints, address rewardsVault, uint128 startTime_, uint128 duration, uint128 amount, 
@@ -90,6 +91,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // sanity checks
         require(poolEmissisonPerSecond > 0, "reward rate = 0");
         require(poolEmissisonPerSecond * duration <= REWARD_TOKEN.balanceOf(REWARDS_VAULT), "reward amount > balance");
+
+        emit DistributionUpdated(newPoolEPS, newEndTime);
     }
 
 
@@ -408,41 +411,44 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         _updateVaultIndex(vault);
     }
 
-//------------------------------------------------------------------------------
-
+//-------------------------------internal-------------------------------------------
     /*//////////////////////////////////////////////////////////////
                                 INTERNAL
     //////////////////////////////////////////////////////////////*/
     
     // updates poolIndex + poolLastUpdateTimestamp
-    function _updatePoolIndex() internal returns (uint256, uint256) {
-        uint256 oldPoolIndex = poolIndex;
-        uint256 oldPoolLastUpdateTimestamp = poolLastUpdateTimeStamp;
-
-        if(block.timestamp == oldPoolLastUpdateTimestamp) {
-            return (oldPoolIndex, oldPoolLastUpdateTimestamp);
+    function _updatePoolIndex() internal returns (DataTypes.PoolAccounting memory, uint256) {
+        DataTypes.PoolAccounting memory pool_ = pool;
+        
+        if(block.timestamp == pool_.poolLastUpdateTimeStamp) {
+            return (pool_.poolIndex, pool_.poolLastUpdateTimeStamp);
         }
         
         // totalBalance = totalAllocPoints (boosted balance)
-        (uint256 nextPoolIndex, uint256 currentTimestamp) = _calculatePoolIndex(oldPoolIndex, poolEmissisonPerSecond, poolLastUpdateTimeStamp, totalAllocPoints);
+        (uint256 nextPoolIndex, uint256 currentTimestamp, uint256 emittedRewards) = _calculatePoolIndex(pool_.poolIndex, pool_.emissisonPerSecond, pool_.poolLastUpdateTimeStamp, pool.totalAllocPoints);
 
-        if(nextPoolIndex != oldPoolIndex) {
-            poolIndex = nextPoolIndex;
+        if(nextPoolIndex != pool_.poolIndex) {
+
+            pool_.poolIndex = nextPoolIndex;
+            pool_.totalPoolRewardsEmitted += emittedRewards; 
 
             emit PoolIndexUpdated(address(REWARD_TOKEN), oldPoolIndex, nextPoolIndex);
         }
 
-        poolLastUpdateTimeStamp = block.timestamp;
+        pool_.poolLastUpdateTimeStamp = block.timestamp;  //note: shouldn't this go into the if()?
 
-        return (nextPoolIndex, currentTimestamp);
+        // update storage
+        pool = pool_;
+
+        return (pool_, currentTimestamp);
     }
 
-    function _calculatePoolIndex(uint256 currentPoolIndex, uint256 emissisonPerSecond, uint256 lastUpdateTimestamp, uint256 totalBalance) internal view returns (uint256, uint256) {
+    function _calculatePoolIndex(uint256 currentPoolIndex, uint256 emissisonPerSecond, uint256 lastUpdateTimestamp, uint256 totalBalance) internal view returns (uint256, uint256, uint256) {
         if (
             emissisonPerSecond == 0                          // 0 emissions. no rewards setup.
             || totalBalance == 0                             // nothing has been staked
             || lastUpdateTimestamp == block.timestamp        // assetIndex already updated
-            || lastUpdateTimestamp >= endTime                // distribution has ended
+            || lastUpdateTimestamp > endTime                 // distribution has ended
         ) {
 
             return (currentPoolIndex, lastUpdateTimestamp);                       
@@ -450,10 +456,11 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
         uint256 currentTimestamp = block.timestamp > endTime ? endTime : block.timestamp;
         uint256 timeDelta = currentTimestamp - lastUpdateTimestamp;
+        uint256 emittedRewards = emissisonPerSecond * timeDelta;
 
-        uint256 nextPoolIndex = ((emissisonPerSecond * timeDelta * 10 ** PRECISION) / totalBalance) + currentPoolIndex;
+        uint256 nextPoolIndex = ((emittedRewards * 10 ** PRECISION) / totalBalance) + currentPoolIndex;
     
-        return (nextPoolIndex, currentTimestamp);
+        return (nextPoolIndex, currentTimestamp, emittedRewards);
     }
 
     ///@dev balance == allocPoints
@@ -470,11 +477,11 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         //3. vaulIndex = newPoolIndex
 
         // get latest poolIndex
-        (uint256 newPoolIndex, uint256 newPoolTimestamp) = _updatePoolIndex();
+        (DataTypes.PoolAccounting memory pool_, uint256 latestPoolTimestamp) = _updatePoolIndex();
 
         // note: is vault mature? not mature dont update vaultIndex(and therefore userIndex)
         if(
-            newPoolTimestamp > vault.endTime                           // vault has matured. vaultIndex should no longer be updated. 
+            latestPoolTimestamp > vault.endTime                           // vault has matured. vaultIndex should no longer be updated. 
         //    || newPoolTimestamp == vault.lastUpdateTimestamp           // vaultIndex has already been updated. no new rewards or fees to account for.
         ) {
             
@@ -482,11 +489,11 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         }
 
         uint256 accruedRewards;
-        if (vault.accounting.vaultIndex != newPoolIndex) {
+        if (vault.accounting.vaultIndex != pool_.poolIndex) {
             if (vault.stakedTokens > 0) {
 
                 // calc. prior unbooked rewards 
-                accruedRewards = _calculateRewards(vault.allocPoints, newPoolIndex, vault.accounting.vaultIndex);
+                accruedRewards = _calculateRewards(vault.allocPoints, pool_.poolIndex, vault.accounting.vaultIndex);
 
                 // calc. fees
                 uint256 accCreatorFee = (accruedRewards * vault.accounting.creatorFee) / 10 ** PRECISION;
@@ -502,7 +509,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             } else { // no tokens staked: no fees. only bonusBall
                 
                 // calc. prior unbooked rewards 
-                accruedRewards = _calculateRewards(vault.allocPoints, newPoolIndex, vault.accounting.vaultIndex);
+                accruedRewards = _calculateRewards(vault.allocPoints, pool_.poolIndex, vault.accounting.vaultIndex);
 
                 // rewards booked to bonusBall: incentive for 1st staker
                 vault.accounting.bonusBall += accruedRewards;
@@ -510,9 +517,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             }
 
             //update vaultIndex
-            vault.accounting.vaultIndex = newPoolIndex;
+            vault.accounting.vaultIndex = pool_.poolIndex;
             
-            emit VaultIndexUpdated(vault.vaultId, newPoolIndex, vault.accounting.totalAccRewards);
+            emit VaultIndexUpdated(vault.vaultId, pool_.poolIndex, vault.accounting.totalAccRewards);
 
             return vault;
         }
@@ -586,6 +593,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
                             POOL MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
+    ///@dev update Index?
     function pause() external onlyOwner {
         _pause();
     }
@@ -594,18 +602,94 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         _unpause();
     }
 
-    ///@dev withdraw only principal. withdraw principal + plus fees to date
-    function emergencyWithdraw() external {}
+    function freeze() external onlyOwner {
+        require(isFrozen == false, "Pool is frozen");
+        
+        // update pool?
+
+        isFrozen = true;
+
+        // emit
+    }
+
+    ///@dev withdraw only principal. indexes are not updated.
+    function emergencyExit(bytes32 vaultId) external whenPaused {
+        require(isFrozen == true, "Pool not frozen");
+
+        // usual blah blah checks
+        require(block.timestamp >= startTime, "Not started");       //note: do we want?
+        require(vaultId > 0, "Invalid vaultId");
+
+        // get vault + check if has been created
+       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
+
+        // check if vault has matured
+        if(vault_.endTime < block.timestamp) revert Errors.VaultNotMatured(vaultId);
+        if(userInfo_.stakedNfts == 0 || userInfo_.stakedNfts == 0) revert Errors.UserHasNothingStaked(vaultId, onBehalfOf);
+
+        // revert if 0 balances of tokens or nfts?
+        // if(userInfo_.stakedNfts < 0 || userInfo_.stakedTokens) revert 
+
+        //get user balances
+        uint256 stakedNfts = userInfo.stakedNfts;
+        uint256 stakedTokens = userInfo.stakedTokens;
+        
+        //update balances: user + vault
+        if(stakedNfts > 0){
+            vault.stakedNfts -= stakedNfts;
+            userInfo.stakedNfts -= stakedNfts;
+            
+            //_burn NFT chips?
+            emit UnstakedMocaNft(onBehalfOf, vaultId, stakedNfts);       
+        }
+
+        if(stakedTokens > 0){
+            vault.stakedTokens -= stakedTokens;
+            userInfo.stakedNfts -= stakedTokens;
+            
+            // burn stkMOCA
+            _burn(onBehalfOf, stakedTokens);
+            emit UnstakedMoca(onBehalfOf, vaultId, stakedTokens);       
+        }
+
+        // update storage
+        vaults[vaultId] = vault;
+        users[onBehalfOf][vaultId] = userInfo;
+
+        // return principal MOCA + NFT chip
+        if(stakedNfts > 0) LOCKED_NFT_TOKEN.safeTransfer(onBehalfOf, stakedNfts);
+        if(stakedTokens > 0) STAKED_TOKEN.safeTransfer(onBehalfOf, stakedTokens); 
+    }
 
 
-    ///@dev addRewards, duration MAY be extended
-    function addRewards(uint256 amount, uint256 ) external onlyOwner {
+    ///@dev addRewards, duration MAY be extended. cannot reduce.
+    function updateEmission(uint256 amount, uint256 duration) external onlyOwner {
+        // either amount or duration could be 0. 
+        if(amount == 0 && duration == 0) revert Errors.InvalidEmissionParameters();
 
+        uint256 endTime_ = endTime;
+        require(block.timestamp < endTime_, "Staking over");
+
+        // close the books
+        (DataTypes.PoolAccounting memory pool_, uint256 latestPoolTimestamp) = _updatePoolIndex();
+
+        // updated values: amount or duration could be 0 
+        uint256 unemittedRewards = pool_.totalPoolRewards - pool_.totalPoolRewardsEmitted;
+
+        unemittedRewards += amount;
+        uint256 newDurationLeft = endTime_ + duration - block.timestamp;
+        
+        // recalc: eps, endTime
+        pool_.emissisonPerSecond = unemittedRewards / newDurationLeft;
+        uint256 newEndTime = endTime_ + duration;
+
+        // update storage
+        pool = pool_;
+        endTime = newEndTime;
+
+        emit DistributionUpdated(pool_.emissisonPerSecond, newEndTime);
     }
     
-    ///@dev extend staking duration. eps will be diluted
-    function extendDuration() external onlyOwner {}
-
 }
 
 
@@ -621,35 +705,3 @@ Issue with mapping addr to dynamic array
     mapping(bytes32 hash(addr,vaultId) => SubscriptionInfo) // if user did not sub vault, default struct value?
 
  */
-
-
- /**
- 
-     function _calculatePoolIndex(uint256 currentPoolIndex, uint256 emissisonPerSecond, uint128 lastUpdateTimestamp, uint256 totalBalance) internal view returns (uint256) {
-        if (
-            emissisonPerSecond == 0                           // 0 emissions. no rewards setup.
-            || totalBalance == 0                             // nothing has been staked
-            || lastUpdateTimestamp == block.timestamp        // assetIndex already updated
-            || lastUpdateTimestamp >= endTime                // distribution has ended
-        ) {
-
-            return currentPoolIndex;                       
-        }
-
-        uint256 currentTimestamp = block.timestamp > endTime ? endTime : block.timestamp;
-        uint256 timeDelta = currentTimestamp - lastUpdateTimestamp;
-
-        if(totalBalance == 0) {
-            uint256 bonusBall = emissisonPerSecond * timeDelta;
-            return currentVaultIndex;   // returns 0 
-        
-        } else {
-
-            uint256 nextVaultIndex; 
-            nextVaultIndex = ((emissisonPerSecond * timeDelta * 10 ** MOCA_PRECISION) / totalBalance) + currentVaultIndex;
-        
-            return nextVaultIndex;
-        }
-    }
- 
-  */ 

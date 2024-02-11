@@ -19,4 +19,7 @@ library Errors {
     error UserHasNoNftStaked(bytes32 vaultId, address user);
     error UserHasNoTokenStaked(bytes32 vaultId, address user);
     error UserHasNothingStaked(bytes32 vaultId, address user);
+
+    error InvalidEmissionParameters();
+
 }

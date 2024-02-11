@@ -47,3 +47,42 @@ The userIndex is nett of fees.
 vaultIndex * fees(0.80) = userIndex.
 
 I am applying fees onto vaultIndex - which is denominated in 18 dp precision, as defined by our Moca token. So sensible to stick with that.
+
+## Contingencies
+
+Assuming something untoward happens, the primary concern is securing users' staked funds and to immediately pause emission of rewards.
+
+Calling `pause` achieves this and allows assessment of the situation to determine the best course of remediation action.
+
+The following would be the remediation actions available:
+    1. allow users to only withdraw principal staked assets (unclaimed rewards forgone)
+    2. allow users to withdraw both principal and unclaimed rewards accrued to date.
+
+Given that exploiting the rewards emissions mechanism is one of the highest probability attack vectors, it is sensible to follow the approach as laid out in option 1. Subsequently, a new pool and be deployed for continuation.
+
+Thus the contingency plan will be as follows:
+
+1. `pause`
+2. assess
+3. If sitrep deems a valid attack, call `freeze`. Else `unpause` for continuation.
+4. On `freeze`: user can withdraw staked assets via `emergencyExit`.
+5. If the scope of attack somehow incapacitates the withdrawal of principal assets, we would need an admin emergency function: `recoverERC20`, `recoverNft`--> (legal will have issues?)
+
+>Note that pool and vault indexes will NOT be updated to brought in-line with the present time.  - in the event of an emergency.
+
+### Unpausing for continuation
+
+Assuming false positive:
+
+1. `unpause`
+2. `updateVault`: some random vault, poolIndex will also be updated.
+
+In this flow, operation continues as per normal. The time delay between pausing and unpausing will not affect(truncate) the rewards emitted by the pool. This is due to the manner in which the poolIndex is  updated via timeDelta.
+
+The only material impact would be that during the paused period users cannot claim rewards and stake assets. Essentially, a 'lost' period of activity.
+
+
+
+## Gas Opt
+
+No time.
