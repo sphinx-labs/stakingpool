@@ -81,8 +81,6 @@ In this flow, operation continues as per normal. The time delay between pausing 
 
 The only material impact would be that during the paused period users cannot claim rewards and stake assets. Essentially, a 'lost' period of activity.
 
-
-
 ## Gas Opt
 
 No time.

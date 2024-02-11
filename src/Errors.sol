@@ -9,6 +9,8 @@ pragma solidity ^0.8.0;
 
 library Errors {
 
+    error InvalidStakingPeriod();
+
     error InsufficientTimeLeft();
 
     error NonExistentVault(bytes32 vaultId);

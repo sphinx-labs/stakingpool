@@ -9,7 +9,7 @@ import {SafeERC20, IERC20} from "openzeppelin-contracts/contracts/token/ERC20/ut
 
 //accesscontrol
 import {Pausable} from "openzeppelin-contracts/contracts/utils/Pausable.sol";
-import {Ownable2Step} from  "openzeppelin-contracts/contracts/access/Ownable2Step.sol";
+import {Ownable2Step, Ownable} from  "openzeppelin-contracts/contracts/access/Ownable2Step.sol";
 
 // interfaces
 import {IRewardsVault} from "./interfaces/IRewardsVault.sol";
@@ -33,13 +33,15 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     uint256 public immutable startTime;           // start time
     uint256 public endTime;                       // allow extension staking period
 
-    uint256 public isFrozen;
+    bool public isFrozen;
 
     // Pool Accounting
     DataTypes.PoolAccounting public pool;
  
 
     // EVENTS
+    event DistributionUpdated(uint256 indexed newPoolEPS, uint256 indexed newEndTime);
+
     event VaultCreated(address indexed creator, bytes32 indexed vaultId, uint40 indexed endTime, DataTypes.VaultDuration duration);
     event PoolIndexUpdated(address indexed asset, uint256 indexed oldIndex, uint256 indexed newIndex);
     event VaultIndexUpdated(bytes32 indexed vaultId, uint256 vaultIndex, uint256 vaultAccruedRewards);
@@ -57,7 +59,6 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     event NftRewardsClaimed(bytes32 indexed vaultId, address indexed creator, uint256 amount);
     event CreatorRewardsClaimed(bytes32 indexed vaultId, address indexed creator, uint256 amount);
 
-    event DistributionUpdated(uint256 indexed newPoolEPS, uint256 indexed newEndTime);
 
 
 //-------------------------------mappings-------------------------------------------
@@ -72,7 +73,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
 
     constructor(IERC20 stakedToken, IERC20 rewardToken, address realmPoints, address rewardsVault, uint128 startTime_, uint128 duration, uint128 amount, 
-        string memory name, string memory symbol) ERC20(name, symbol) payable {
+        string memory name, string memory symbol, address owner) payable Ownable(owner) ERC20(name, symbol) {
     
         STAKED_TOKEN = stakedToken;
         REWARD_TOKEN = rewardToken;
@@ -80,19 +81,25 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         REALM_POINTS = realmPoints;
         REWARDS_VAULT = rewardsVault;
 
-        // duration
-        require(startTime_ > block.timestamp && duration > 0, "Invalid duration");
+        DataTypes.PoolAccounting memory pool_;
+
+        // sanity check: duration
+        require(startTime_ > block.timestamp && duration > 0, "Invalid period");
         startTime = startTime_;
         endTime = startTime_ + duration;   
         
-        // eps 
-        poolEmissisonPerSecond = amount / duration;
+        // sanity checks: eps
+        pool_.emissisonPerSecond = amount / duration;
+        require(pool_.emissisonPerSecond > 0, "reward rate = 0");
 
-        // sanity checks
-        require(poolEmissisonPerSecond > 0, "reward rate = 0");
-        require(poolEmissisonPerSecond * duration <= REWARD_TOKEN.balanceOf(REWARDS_VAULT), "reward amount > balance");
+        // reward vault must hold necessary tokens
+        pool_.totalPoolRewards = amount;
+        require(amount <= IRewardsVault(REWARDS_VAULT).totalVaultRewards(), "reward amount > totalVaultRewards");
 
-        emit DistributionUpdated(newPoolEPS, newEndTime);
+        // update storage
+        pool = pool_;
+
+        emit DistributionUpdated(pool_.emissisonPerSecond, endTime);
     }
 
 
@@ -107,9 +114,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // period check 
         // Note:given that we maximally 120 days to now, should not overflow uint40
         uint40 vaultEndTime = uint40(block.timestamp + (30 days * uint8(duration))); 
-        if (endTime <= vaultEndTime) {
-            revert Errors.InsufficientTimeLeft();
-        }
+        if (endTime <= vaultEndTime) revert Errors.InsufficientTimeLeft();
 
         // vaultId generation
         bytes32 vaultId = _generateVaultId(salt);
@@ -119,12 +124,12 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
         // update poolIndex: allocPoints changed. book prior rewards, based on prior alloc points.
         // updates index + timestamp 
-        (uint256 newPoolIndex, uint256 currentTimestamp) = _updatePoolIndex();
+        (DataTypes.PoolAccounting memory pool_, uint256 currentTimestamp) = _updatePoolIndex();
 
         // update poolAllocPoints
         uint16 vaultAllocPoints = vaultBaseAllocPoints * uint16(duration);        //duration multiplier: 30:1, 60:2, 90:3
-        totalAllocPoints += vaultAllocPoints;
-        
+        pool_.totalAllocPoints += vaultAllocPoints;
+
         // build vault
         DataTypes.Vault memory vault; 
             vault.vaultId = vaultId;
@@ -138,9 +143,11 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             vault.accounting.totalNftFee = nftFee;
             vault.accounting.creatorFee = creatorFee;
             // index
-            vault.accounting.vaultIndex = uint128(newPoolIndex);
+            vault.accounting.vaultIndex = pool_.poolIndex;
 
+        // update storage
         vaults[vaultId] = vault;
+        pool = pool_;
 
         //build userInfo
         //DataTypes.UserInfo memory userInfo; 
@@ -181,12 +188,11 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // update allocPoints: user, vault, pool
         userInfo.allocPoints += incomingAllocPoints;
         vault.allocPoints += incomingAllocPoints;   
-        totalAllocPoints += incomingAllocPoints;
-
 
         // update storage
         vaults[vaultId] = vault;
         users[onBehalfOf][vaultId] = userInfo;
+        pool.totalAllocPoints += incomingAllocPoints;
 
         // mint stkMOCA
         _mint(onBehalfOf, amount);
@@ -356,13 +362,12 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // update indexes and book all prior rewards
         (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
         
-        //get user balances
         uint256 stakedNfts = userInfo.stakedNfts;
-        
+
         //update balances: user + vault
+        userInfo.stakedNfts = 0;
         vault.stakedNfts -= stakedNfts;
-        userInfo.stakedNfts -= stakedNfts;
-            
+        
         //_burn NFT chips?
         emit UnstakedMocaNft(onBehalfOf, vaultId, stakedNfts);   
 
@@ -411,6 +416,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         _updateVaultIndex(vault);
     }
 
+    function updateCreatorFee(bytes32 vaultId, uint256 fee )external whenNotPaused {}
+    function updateNftFee(bytes32 vaultId, uint256 fee )external whenNotPaused {}
+
 //-------------------------------internal-------------------------------------------
     /*//////////////////////////////////////////////////////////////
                                 INTERNAL
@@ -421,18 +429,19 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         DataTypes.PoolAccounting memory pool_ = pool;
         
         if(block.timestamp == pool_.poolLastUpdateTimeStamp) {
-            return (pool_.poolIndex, pool_.poolLastUpdateTimeStamp);
+            return (pool_, pool_.poolLastUpdateTimeStamp);
         }
         
         // totalBalance = totalAllocPoints (boosted balance)
         (uint256 nextPoolIndex, uint256 currentTimestamp, uint256 emittedRewards) = _calculatePoolIndex(pool_.poolIndex, pool_.emissisonPerSecond, pool_.poolLastUpdateTimeStamp, pool.totalAllocPoints);
 
         if(nextPoolIndex != pool_.poolIndex) {
+            
+            //token, oldIndex, newIndex
+            emit PoolIndexUpdated(address(REWARD_TOKEN), pool_.poolIndex, nextPoolIndex);
 
             pool_.poolIndex = nextPoolIndex;
             pool_.totalPoolRewardsEmitted += emittedRewards; 
-
-            emit PoolIndexUpdated(address(REWARD_TOKEN), oldPoolIndex, nextPoolIndex);
         }
 
         pool_.poolLastUpdateTimeStamp = block.timestamp;  //note: shouldn't this go into the if()?
@@ -451,7 +460,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             || lastUpdateTimestamp > endTime                 // distribution has ended
         ) {
 
-            return (currentPoolIndex, lastUpdateTimestamp);                       
+            return (currentPoolIndex, lastUpdateTimestamp, 0);                       
         }
 
         uint256 currentTimestamp = block.timestamp > endTime ? endTime : block.timestamp;
@@ -613,19 +622,19 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     }
 
     ///@dev withdraw only principal. indexes are not updated.
-    function emergencyExit(bytes32 vaultId) external whenPaused {
-        require(isFrozen == true, "Pool not frozen");
+    function emergencyExit(bytes32 vaultId, address onBehalfOf) external whenPaused {
+        require(isFrozen = true, "Pool not frozen");
 
         // usual blah blah checks
         require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
-       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
+       (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _cache(vaultId, onBehalfOf);
 
         // check if vault has matured
-        if(vault_.endTime < block.timestamp) revert Errors.VaultNotMatured(vaultId);
-        if(userInfo_.stakedNfts == 0 || userInfo_.stakedNfts == 0) revert Errors.UserHasNothingStaked(vaultId, onBehalfOf);
+        if(vault.endTime < block.timestamp) revert Errors.VaultNotMatured(vaultId);
+        if(userInfo.stakedNfts == 0 || userInfo.stakedNfts == 0) revert Errors.UserHasNothingStaked(vaultId, onBehalfOf);
 
         // revert if 0 balances of tokens or nfts?
         // if(userInfo_.stakedNfts < 0 || userInfo_.stakedTokens) revert 
@@ -691,17 +700,3 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     }
     
 }
-
-
-
-
-/**
-Issue with mapping addr to dynamic array
-
-- No check for duplicates / No assurance of uniqueness
-    on restaking to the same vault, must loop through all the structs
-
-    mapping(address user => []vaultIds)                 // ? may not be needed
-    mapping(bytes32 hash(addr,vaultId) => SubscriptionInfo) // if user did not sub vault, default struct value?
-
- */
