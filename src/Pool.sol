@@ -72,9 +72,13 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 //-------------------------------external------------------------------------------
 
 
-    constructor(IERC20 stakedToken, IERC20 rewardToken, address realmPoints, address rewardsVault, uint128 startTime_, uint128 duration, uint128 amount, 
+    constructor(IERC20 stakedToken, IERC20 rewardToken, address realmPoints, address rewardsVault, uint256 startTime_, uint256 duration, uint256 rewards, 
         string memory name, string memory symbol, address owner) payable Ownable(owner) ERC20(name, symbol) {
     
+        // sanity check: duration
+        require(startTime_ > block.timestamp && duration > 0, "Invalid period");
+        require(rewards > 0, "Invalid rewards");
+
         STAKED_TOKEN = stakedToken;
         REWARD_TOKEN = rewardToken;
         // NFT
@@ -83,18 +87,17 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
         DataTypes.PoolAccounting memory pool_;
 
-        // sanity check: duration
-        require(startTime_ > block.timestamp && duration > 0, "Invalid period");
+
         startTime = startTime_;
         endTime = startTime_ + duration;   
         
         // sanity checks: eps
-        pool_.emissisonPerSecond = amount / duration;
+        pool_.emissisonPerSecond = rewards / duration;
         require(pool_.emissisonPerSecond > 0, "reward rate = 0");
 
         // reward vault must hold necessary tokens
-        pool_.totalPoolRewards = amount;
-        require(amount <= IRewardsVault(REWARDS_VAULT).totalVaultRewards(), "reward amount > totalVaultRewards");
+        pool_.totalPoolRewards = rewards;
+        require(rewards <= IRewardsVault(REWARDS_VAULT).totalVaultRewards(), "reward amount > totalVaultRewards");
 
         // update storage
         pool = pool_;
@@ -108,7 +111,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     //////////////////////////////////////////////////////////////*/
 
     ///@dev creates empty vault
-    function createVault(uint8 salt, DataTypes.VaultDuration duration, uint8 creatorFee, uint8 nftFee) external whenNotPaused {
+    function createVault(address onBehalfOf, uint8 salt, DataTypes.VaultDuration duration, uint256 creatorFee, uint256 nftFee) external whenNotPaused {
+        require(block.timestamp >= startTime, "Not started");       //note: do we want?
+
         //rp check
 
         // period check 
@@ -118,9 +123,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
         // vaultId generation
         bytes32 vaultId = _generateVaultId(salt);
-        while (vaults[vaultId].vaultId != bytes32(0)) {         //If vaultId exists, generate new random Id
-            _generateVaultId(++salt);
-        }
+        while (vaults[vaultId].vaultId != bytes32(0)) vaultId = _generateVaultId(++salt);      // If vaultId exists, generate new random Id
 
         // update poolIndex: allocPoints changed. book prior rewards, based on prior alloc points.
         // updates index + timestamp 
@@ -133,17 +136,19 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // build vault
         DataTypes.Vault memory vault; 
             vault.vaultId = vaultId;
-            vault.creator = msg.sender;
+            vault.creator = onBehalfOf;
             vault.duration = duration;
             vault.endTime = vaultEndTime; 
-
+            vault.multiplier = vaultEndTime; 
             vault.allocPoints = vaultAllocPoints;        // vaultAllocPoints: 30:1, 60:2, 90:3
+            
+            // index
+            vault.accounting.vaultIndex = pool_.poolIndex;
             // fees: note: precision check
             vault.accounting.totalFees = nftFee + creatorFee;
             vault.accounting.totalNftFee = nftFee;
             vault.accounting.creatorFee = creatorFee;
-            // index
-            vault.accounting.vaultIndex = pool_.poolIndex;
+
 
         // update storage
         vaults[vaultId] = vault;
@@ -168,21 +173,21 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
         // update user's stakedTokens
-        userInfo.stakedTokens += uint128(amount);
+        userInfo.stakedTokens += amount;
 
-        uint128 incomingAllocPoints;
+        uint256 incomingAllocPoints;
         if (vault.stakedTokens == 0){    // check if first stake: eligible for bonusBall
             
             // award bonusBall rewards
             userInfo.accRewards = vault.accounting.bonusBall;
 
             // calc. incoming allocPoints
-            incomingAllocPoints = uint128(amount * vault.multiplier) - vaultBaseAllocPoints;
+            incomingAllocPoints = (amount * vault.multiplier) - vaultBaseAllocPoints;
 
         } else {    // not first stake: bonusBall already booked and negated
             
             // calc. incoming allocPoints
-            incomingAllocPoints = uint128(amount * vault.multiplier);
+            incomingAllocPoints = (amount * vault.multiplier);
         }
 
         // update allocPoints: user, vault, pool
