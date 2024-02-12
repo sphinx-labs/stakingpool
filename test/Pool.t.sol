@@ -254,7 +254,7 @@ contract StateT02Test is StateT02 {
         assertEq(uint8(DataTypes.VaultDuration.THIRTY), uint8(duration_));
         assertEq(block.timestamp + 30 days, endTime);
 
-        assertEq(0, multiplier);
+        assertEq(1, multiplier);
         assertEq(100, allocPoints);     //baseAllocPoints
         assertEq(0, stakedNfts);
         assertEq(0, stakedTokens);

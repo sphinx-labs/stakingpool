@@ -125,8 +125,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         bytes32 vaultId = _generateVaultId(salt);
         while (vaults[vaultId].vaultId != bytes32(0)) vaultId = _generateVaultId(++salt);      // If vaultId exists, generate new random Id
 
-        // update poolIndex: allocPoints changed. book prior rewards, based on prior alloc points.
-        // updates index + timestamp 
+        // update poolIndex: book prior rewards, based on prior alloc points 
         (DataTypes.PoolAccounting memory pool_, uint256 currentTimestamp) = _updatePoolIndex();
 
         // update poolAllocPoints
@@ -139,7 +138,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             vault.creator = onBehalfOf;
             vault.duration = duration;
             vault.endTime = vaultEndTime; 
-            vault.multiplier = vaultEndTime; 
+            vault.multiplier = uint8(duration); 
             vault.allocPoints = vaultAllocPoints;        // vaultAllocPoints: 30:1, 60:2, 90:3
             
             // index
@@ -150,13 +149,15 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             vault.accounting.creatorFee = creatorFee;
 
 
+        //build userInfo - maybe no need
+        DataTypes.UserInfo memory userInfo; 
+            userInfo.vaultId = vaultId;
+
         // update storage
-        vaults[vaultId] = vault;
         pool = pool_;
-
-        //build userInfo
-        //DataTypes.UserInfo memory userInfo; 
-
+        vaults[vaultId] = vault;
+        users[onBehalfOf][vaultId] = userInfo;
+        
         emit VaultCreated(msg.sender, vaultId, vaultEndTime, duration); //emit totaLAllocPpoints updated?
     }  
 
@@ -170,34 +171,35 @@ contract Pool is ERC20, Pausable, Ownable2Step {
        (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
 
         // update indexes and book all prior rewards
-        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+       (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
         // update user's stakedTokens
         userInfo.stakedTokens += amount;
 
-        uint256 incomingAllocPoints;
+        uint256 incomingAllocPoints = (amount * vault.multiplier);
+        uint256 priorVaultAllocPoints = vault.allocPoints;
+
+        // update allocPoints: user, vault, pool
+        userInfo.allocPoints += incomingAllocPoints;
+
         if (vault.stakedTokens == 0){    // check if first stake: eligible for bonusBall
             
             // award bonusBall rewards
             userInfo.accRewards = vault.accounting.bonusBall;
-
-            // calc. incoming allocPoints
-            incomingAllocPoints = (amount * vault.multiplier) - vaultBaseAllocPoints;
-
-        } else {    // not first stake: bonusBall already booked and negated
             
-            // calc. incoming allocPoints
-            incomingAllocPoints = (amount * vault.multiplier);
-        }
+            vault.allocPoints = incomingAllocPoints;
+            pool.totalAllocPoints = pool.totalAllocPoints + incomingAllocPoints - priorVaultAllocPoints;
 
-        // update allocPoints: user, vault, pool
-        userInfo.allocPoints += incomingAllocPoints;
-        vault.allocPoints += incomingAllocPoints;   
+        } else {
+
+            vault.allocPoints += incomingAllocPoints;
+            pool.totalAllocPoints += incomingAllocPoints;
+        }
+        
 
         // update storage
         vaults[vaultId] = vault;
         users[onBehalfOf][vaultId] = userInfo;
-        pool.totalAllocPoints += incomingAllocPoints;
 
         // mint stkMOCA
         _mint(onBehalfOf, amount);
