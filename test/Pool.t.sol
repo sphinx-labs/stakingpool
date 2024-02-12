@@ -186,9 +186,9 @@ contract StateZeroTest is StateZero {
 
     function testEmptyVaults(bytes32 vaultId) public {
         
-        (bytes32 vaultId, address creator,,,,,,, ) = stakingPool.vaults(vaultId);
+        (bytes32 vaultId_, address creator,,,,,,, ) = stakingPool.vaults(vaultId);
 
-        assertEq(vaultId, bytes32(0));
+        assertEq(vaultId_, bytes32(0));
         assertEq(creator, address(0));   
     }
 }
@@ -246,7 +246,7 @@ contract StateT02Test is StateT02 {
 
     function testNewVault() public {
         // check vault
-        (bytes32 vaultId, address creator, DataTypes.VaultDuration duration_, uint40 endTime, uint256 multiplier,
+        (bytes32 vaultId, address creator, DataTypes.VaultDuration duration_, uint256 endTime, uint256 multiplier,
         uint256 allocPoints, uint256 stakedNfts, uint256 stakedTokens, DataTypes.VaultAccounting memory vaultAccounting) = stakingPool.vaults(vaultIdA);
 
         assertEq(vaultIdA, vaultId);

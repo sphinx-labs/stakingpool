@@ -38,7 +38,7 @@ contract DataTypes {
 
         VaultDuration duration;     //uint8
         //uint40 startTime;
-        uint40 endTime;             //uint40
+        uint256 endTime;             //uint40
         
         uint256 multiplier;
         uint256 allocPoints; 
