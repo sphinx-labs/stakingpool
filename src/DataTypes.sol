@@ -36,9 +36,8 @@ contract DataTypes {
         bytes32 vaultId;   
         address creator;
 
-        VaultDuration duration;     //uint8
-        //uint40 startTime;
-        uint256 endTime;             //uint40
+        VaultDuration duration;      // uint8
+        uint256 endTime;             // uint40
         
         uint256 multiplier;
         uint256 allocPoints; 

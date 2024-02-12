@@ -41,6 +41,7 @@ abstract contract StateZero is Test {
     string public name; 
     string public symbol;
     address public owner;
+    uint256 public constant vaultBaseAllocPoints = 100 ether;    
 
     // testing data
     address public userA;
@@ -151,7 +152,7 @@ abstract contract StateZero is Test {
         assertEq(totalAllocPoints, 0);
         assertEq(emissisonPerSecond, 1 ether);
         assertEq(poolIndex, 0);
-        assertEq(poolLastUpdateTimeStamp, 0);
+        assertEq(poolLastUpdateTimeStamp, startTime);   
         assertEq(totalPoolRewards, rewards);
         assertEq(totalPoolRewardsEmitted, 0);
 
@@ -161,23 +162,118 @@ abstract contract StateZero is Test {
         // check time
         assertEq(block.timestamp, 0);
     }
+
+    function getPoolStruct() public returns (DataTypes.PoolAccounting memory) {
+        (
+            uint256 totalAllocPoints, 
+            uint256 emissisonPerSecond, 
+            uint256 poolIndex, 
+            uint256 poolLastUpdateTimeStamp,
+            uint256 totalPoolRewards,
+            uint256 totalPoolRewardsEmitted
+
+        ) = stakingPool.pool();
+
+        DataTypes.PoolAccounting memory pool;
+        
+        pool.totalAllocPoints = totalAllocPoints;
+        pool.emissisonPerSecond = emissisonPerSecond;
+
+        pool.poolIndex = poolIndex;
+        pool.poolLastUpdateTimeStamp = poolLastUpdateTimeStamp;
+
+        pool.totalPoolRewards = totalPoolRewards;
+        pool.totalPoolRewardsEmitted = totalPoolRewardsEmitted;
+
+        return pool;
+    }
+
+    function getUserInfoStruct(bytes32 vaultId, address user) public returns (DataTypes.UserInfo memory){
+        (
+            //bytes32 vaultId_, 
+            ,uint256 stakedNfts, uint256 stakedTokens, uint256 allocPoints, 
+            uint256 userIndex, uint256 userNftIndex,
+            uint256 accRewards, uint256 claimedRewards,
+            uint256 accNftBoostRewards, uint256 claimedNftRewards,
+            uint256 claimedCreatorRewards
+
+        ) = stakingPool.users(user, vaultId);
+
+        DataTypes.UserInfo memory userInfo;
+
+        {
+            //userInfo.vaultId = vaultId_;
+        
+            userInfo.stakedNfts = stakedNfts;
+            userInfo.stakedTokens = stakedTokens;
+            userInfo.allocPoints = allocPoints;
+
+            userInfo.userIndex = userIndex;
+            userInfo.userNftIndex = userNftIndex;
+
+            userInfo.accRewards = accRewards;
+            userInfo.claimedRewards = claimedRewards;
+
+            userInfo.accNftBoostRewards = accNftBoostRewards;
+            userInfo.claimedNftRewards = claimedNftRewards;
+
+            userInfo.claimedCreatorRewards = claimedCreatorRewards;
+        }
+
+        return userInfo;
+    }
+
+    function getVaultStruct(bytes32 vaultId) public returns (DataTypes.Vault memory) {
+        (
+            bytes32 vaultId_, address creator,
+            DataTypes.VaultDuration duration_, uint256 endTime_,
+            
+            uint256 multiplier, uint256 allocPoints,
+            uint256 stakedNfts, uint256 stakedTokens,
+            
+            DataTypes.VaultAccounting memory accounting
+
+        ) = stakingPool.vaults(vaultId);
+
+        DataTypes.Vault memory vault;
+        
+        vault.vaultId = vaultId_;
+        vault.creator = creator;
+
+        vault.duration = duration_;
+        vault.endTime = endTime_;
+
+        vault.multiplier = multiplier;
+        vault.allocPoints = allocPoints;
+
+        vault.stakedNfts = stakedNfts;
+        vault.stakedTokens = stakedTokens;
+
+        vault.accounting = accounting;
+
+        return vault;
+    }
+
 }
 
-//Note: Pool deployed but not active yet. t = 0.
+//Note:  t = 0. Pool deployed but not active yet.
 contract StateZeroTest is StateZero {
 
     function testCannotCreateVault() public {
         vm.prank(userA);
+
         vm.expectRevert("Not started");
         
         uint8 salt = 1;
         uint256 creatorFee = 0.10 * 1e18;
         uint256 nftFee = 0.10 * 1e18;
+
         stakingPool.createVault(userA, salt, DataTypes.VaultDuration.THIRTY, creatorFee, nftFee);
     }
 
     function testCannotStake() public {
         vm.prank(userA);
+
         vm.expectRevert("Not started");
         
         bytes32 vaultId = bytes32(0);
@@ -186,10 +282,10 @@ contract StateZeroTest is StateZero {
 
     function testEmptyVaults(bytes32 vaultId) public {
         
-        (bytes32 vaultId_, address creator,,,,,,, ) = stakingPool.vaults(vaultId);
+        DataTypes.Vault memory vault = getVaultStruct(vaultId);
 
-        assertEq(vaultId_, bytes32(0));
-        assertEq(creator, address(0));   
+        assertEq(vault.vaultId, bytes32(0));
+        assertEq(vault.creator, address(0));   
     }
 }
 
@@ -209,66 +305,230 @@ abstract contract StateT01 is StateZero {
 //      see testDiscardedRewards() at the end.
 contract StateT01Test is StateT01 {
     // placeholder
+
+
 }
 
-//Note: t=02, Vault created. 
+//Note: t=02, VaultA created. 
 //      but no staking done. 
 //      vault will accrued rewards towards bonusBall
 abstract contract StateT02 is StateT01 {
 
     bytes32 public vaultIdA;
 
+    uint8 public saltA = 123;
+    uint256 public creatorFeeA = 0.10 * 1e18;
+    uint256 public nftFeeA = 0.10 * 1e18;
+
     function setUp() public virtual override {
         super.setUp();
 
         vm.warp(2);
 
-        // vault params
-        uint8 salt = 1;
-        uint256 creatorFee = 0.10 * 1e18;
-        uint256 nftFee = 0.10 * 1e18;
-
         // vault Id: 0xaf70b64da6263772d20ce496dc028133986416edb1c1bab48e1021ef72b16b3f
-        vaultIdA = generateVaultId(salt, userA);
+        vaultIdA = generateVaultId(saltA, userA);
 
         // create vault
         vm.prank(userA);       
-        stakingPool.createVault(userA, salt, DataTypes.VaultDuration.THIRTY, creatorFee, nftFee);
+        stakingPool.createVault(userA, saltA, DataTypes.VaultDuration.THIRTY, creatorFeeA, nftFeeA);
     }
     
     function generateVaultId(uint8 salt, address onBehalfOf) public view returns (bytes32) {
         return bytes32(keccak256(abi.encode(onBehalfOf, block.timestamp, salt)));
     }
+
 }
 
-//Note: t=02, Pool deployed and active. userA and userB stake.
+//Note: t=02, userA and userB stake.
 contract StateT02Test is StateT02 {
 
-    function testNewVault() public {
+    // cannot claim
+    // cannot unstake
+
+    function testNewVaultCreated() public {
         // check vault
-        (bytes32 vaultId, address creator, DataTypes.VaultDuration duration_, uint256 endTime, uint256 multiplier,
-        uint256 allocPoints, uint256 stakedNfts, uint256 stakedTokens, DataTypes.VaultAccounting memory vaultAccounting) = stakingPool.vaults(vaultIdA);
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
 
-        assertEq(vaultIdA, vaultId);
-        assertEq(userA, creator);
-        assertEq(uint8(DataTypes.VaultDuration.THIRTY), uint8(duration_));
-        assertEq(block.timestamp + 30 days, endTime);
+        assertEq(vaultA.vaultId, vaultIdA);
+        assertEq(userA, vaultA.creator);
+        assertEq(uint8(DataTypes.VaultDuration.THIRTY), uint8(vaultA.duration));
+        assertEq(block.timestamp + 30 days, vaultA.endTime);   // 2592002 [2.592e6]
 
-        assertEq(1, multiplier);
-        assertEq(100, allocPoints);     //baseAllocPoints
-        assertEq(0, stakedNfts);
-        assertEq(0, stakedTokens);
+        assertEq(1, vaultA.multiplier);              // 30Day multiplier
+        assertEq(100 ether, vaultA.allocPoints);     // baseAllocPoints: 1e20
+        assertEq(0, vaultA.stakedNfts);
+        assertEq(0, vaultA.stakedTokens);
+
+        // accounting
+        assertEq(0, vaultA.accounting.vaultIndex);
+        assertEq(0, vaultA.accounting.vaultNftIndex);
+
+        assertEq(creatorFeeA + nftFeeA, vaultA.accounting.totalFees);
+        assertEq(creatorFeeA, vaultA.accounting.creatorFee);
+        assertEq(nftFeeA, vaultA.accounting.creatorFee);
+
+        assertEq(0, vaultA.accounting.totalAccRewards);
+        assertEq(0, vaultA.accounting.accNftBoostRewards);
+        assertEq(0, vaultA.accounting.accCreatorRewards);
+        assertEq(0, vaultA.accounting.bonusBall);
+
+        assertEq(0, vaultA.accounting.claimedRewards);
 
     }
 
-    //should be no rewards to claim
     function testCanStake() public {
         vm.prank(userA);
         stakingPool.stakeTokens(vaultIdA, userA, 1e18);
+        // check events
+        // check staking stuff
     }
 
+    // vault created. therefore, poolIndex has been updated.
+    function testPoolAccounting() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        
+        // totalAllocPoints: 100, emissisonPerSecond: [1e18], 
+        // poolIndex: 0, poolLastUpdateTimeStamp: 2, 
+        // totalPoolRewards: 10368000000000000000000000 [1.036e25], totalPoolRewardsEmitted: 0
+
+        assertEq(pool.totalAllocPoints, vaultBaseAllocPoints);   // 1 new vault w/ no staking
+        assertEq(pool.emissisonPerSecond, 1 ether);
+        
+        assertEq(pool.poolIndex, 0);
+        assertEq(pool.poolLastUpdateTimeStamp, startTime + 1);   
+
+        assertEq(pool.totalPoolRewards, rewards);
+        assertEq(pool.totalPoolRewardsEmitted, 0);
+    }
 
 }
+
+
+//Note: t=03,  
+//      userA stakes into VaultA and receives bonusBall reward. 
+//      check bonusBall accrual on first stake.
+abstract contract StateT03 is StateT02 {
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(3);
+
+        vm.prank(userA);
+        stakingPool.stakeTokens(vaultIdA, userA, userAPrinciple);
+    }
+}
+
+contract StateT03Test is StateT03 {
+
+    // check tt staking was received and recorded correctly
+    // check vault and userInfo
+
+    function testPoolInfo() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+            From t=2 to t=3, Pool emits 1e18 rewards
+            There is only 1 vault in existence, which receives the full 1e18 of rewards
+            No user has staked at the moment, so this is booked as bonusBall
+             - rewardsAccruedPerToken = 1e18 / vaultBaseAllocPoint 
+                                      = 1e18 / 100e18
+                                      = 1e16
+             - poolIndex should therefore be updated to 1e16 (index represents rewardsPerToken since inception)
+
+            Calculating index:
+            - poolIndex = (eps * timeDelta / totalAllocPoints) + oldIndex
+             - eps: 1 
+             - oldIndex: 0
+             - timeDelta: 1 seconds 
+             - totalAllocPoints: 100e18
+            
+            - poolIndex = (1 * 1 / 100e18 ) + 0 = 0.01 * 1e18 = 1e16
+        */
+
+        assertEq(pool.totalAllocPoints, userAPrinciple); // poolAllocPoints reset to match user's stake. no more vaultBaseAllocPoints
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex, 1e16);
+        assertEq(pool.poolLastUpdateTimeStamp, 3);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 1 ether);
+    }
+
+    function testVaultAInfo() public {
+
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+        /**
+            userA has staked into vaultA
+             - vault alloc points should be updated: baseVaultALlocPoint dropped, and overwritten w/ userA allocPoints
+             - stakedTokens updated
+             - vaultIndex updated
+             - fees updated
+             - rewards updated
+         */
+
+
+        /**
+         0xd56269e986134c2282b96a13731b39068404e297fc4b4b4f0b78fca7799baf69, 0x000000000000000000000000000000000000000A, 1, 2592002 [2.592e6], 1, 50000000000000000000 [5e19], 0, 0, 
+         VaultAccounting({ vaultIndex: 10000000000000000 [1e16], vaultNftIndex: 0, totalFees: 200000000000000000 [2e17], 
+         creatorFee: 100000000000000000 [1e17], totalNftFee: 100000000000000000 [1e17], totalAccRewards: 1000000000000000000 [1e18], accNftBoostRewards: 0, accCreatorRewards: 0, bonusBall: 1000000000000000000 [1e18], claimedRewards: 0 }
+         */
+        
+        assertEq(vaultA.allocPoints, userAPrinciple);
+        assertEq(vaultA.stakedTokens, userAPrinciple); // ? 0 ?
+    /*    
+        // indexes
+        assertEq(vaultA.accounting.vaultIndex, 1e16); 
+        assertEq(vaultA.accounting.vaultNftIndex, 0); 
+
+        // rewards
+        assertEq(vaultA.accounting.totalAccRewards, 1e18); 
+        assertEq(vaultA.accounting.accNftBoostRewards, (0.1 * 1e18)); 
+        assertEq(vaultA.accounting.accCreatorRewards, (0.1 * 1e18)); 
+        assertEq(vaultA.accounting.bonusBall, 1e18); 
+
+        assertEq(vaultA.accounting.claimedRewards, 0); 
+*/
+    }
+
+    function testUserAInfo() public {
+
+        DataTypes.UserInfo memory userA = getUserInfoStruct(vaultIdA, userA);
+
+        /**
+            vaultIndex = 1e16
+
+            Calculating userIndex:
+             grossUserIndex = 1e16
+             totalFees = 0.2e18
+             
+             userIndex = [1e16 * (1 - 0.2e18) / 1e18] = [1e16 * 0.8e18] / 1e18 = 8e15
+        */
+
+        assertEq(userA.stakedTokens, userAPrinciple);
+        assertEq(userA.allocPoints, userAPrinciple);
+
+        assertEq(userA.userIndex, 8e15);   // matching poolIndex
+        assertEq(userA.userNftIndex, 0);
+
+        assertEq(userA.accRewards, 1 ether);  // 1e18
+        assertEq(userA.claimedRewards, 0);
+
+        assertEq(userA.accNftBoostRewards, 0);
+        assertEq(userA.claimedNftRewards, 0);
+        assertEq(userA.claimedCreatorRewards, 0);
+
+
+        // check vault
+        //assertEq(vaultA.accounting.vaultIndex, );
+
+        //check user
+    }
+}
+
+
 
 /**
     Scenario: Linear Mode

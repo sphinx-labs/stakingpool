@@ -27,8 +27,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     address public REALM_POINTS;
     address public REWARDS_VAULT;
     
-    uint256 public constant PRECISION = 18;    //token dp
-    uint16 public constant vaultBaseAllocPoints = 100;    
+    uint256 public constant PRECISION = 18;                       //token dp
+    uint256 public constant vaultBaseAllocPoints = 100 ether;     // need 18 dp precision for pool index calc
     
     uint256 public immutable startTime;           // start time
     uint256 public endTime;                       // allow extension staking period
@@ -42,11 +42,12 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     // EVENTS
     event DistributionUpdated(uint256 indexed newPoolEPS, uint256 indexed newEndTime);
 
-    event VaultCreated(address indexed creator, bytes32 indexed vaultId, uint40 indexed endTime, DataTypes.VaultDuration duration);
-    event PoolIndexUpdated(address indexed asset, uint256 indexed oldIndex, uint256 indexed newIndex);
+    event PoolIndexUpdated(uint256 indexed lastUpdateTimestamp, uint256 indexed oldIndex, uint256 indexed newIndex);
     event VaultIndexUpdated(bytes32 indexed vaultId, uint256 vaultIndex, uint256 vaultAccruedRewards);
     event UserIndexUpdated(address indexed user, bytes32 indexed vaultId, uint256 userIndex, uint256 userAccruedRewards);
 
+    event VaultCreated(address indexed creator, bytes32 indexed vaultId, uint40 indexed endTime, DataTypes.VaultDuration duration);
+    
     event StakedMoca(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
     event StakedMocaNft(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
     event UnstakedMoca(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
@@ -87,8 +88,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
         DataTypes.PoolAccounting memory pool_;
 
-
-        startTime = startTime_;
+        // timing and duration
+        startTime = pool_.poolLastUpdateTimeStamp = startTime_;
         endTime = startTime_ + duration;   
         
         // sanity checks: eps
@@ -129,7 +130,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         (DataTypes.PoolAccounting memory pool_, uint256 currentTimestamp) = _updatePoolIndex();
 
         // update poolAllocPoints
-        uint16 vaultAllocPoints = vaultBaseAllocPoints * uint16(duration);        //duration multiplier: 30:1, 60:2, 90:3
+        uint256 vaultAllocPoints = vaultBaseAllocPoints * uint256(duration);        //duration multiplier: 30:1, 60:2, 90:3
         pool_.totalAllocPoints += vaultAllocPoints;
 
         // build vault
@@ -173,13 +174,11 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // update indexes and book all prior rewards
        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
-        // update user's stakedTokens
-        userInfo.stakedTokens += amount;
-
+        // calc. allocPoints
         uint256 incomingAllocPoints = (amount * vault.multiplier);
         uint256 priorVaultAllocPoints = vault.allocPoints;
 
-        // update allocPoints: user, vault, pool
+        // increment allocPoints: user
         userInfo.allocPoints += incomingAllocPoints;
 
         if (vault.stakedTokens == 0){    // check if first stake: eligible for bonusBall
@@ -188,7 +187,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             userInfo.accRewards = vault.accounting.bonusBall;
             
             vault.allocPoints = incomingAllocPoints;
-            pool.totalAllocPoints = pool.totalAllocPoints + incomingAllocPoints - priorVaultAllocPoints;
+            pool.totalAllocPoints = pool.totalAllocPoints + incomingAllocPoints - priorVaultAllocPoints; //Note: priorVaultAllocPoints = 0. must minus base
 
         } else {
 
@@ -196,6 +195,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             pool.totalAllocPoints += incomingAllocPoints;
         }
         
+        // increment stakedTokens: user, vault
+        userInfo.stakedTokens += amount;
+        vault.stakedTokens += amount;
 
         // update storage
         vaults[vaultId] = vault;
@@ -445,7 +447,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         if(nextPoolIndex != pool_.poolIndex) {
             
             //token, oldIndex, newIndex
-            emit PoolIndexUpdated(address(REWARD_TOKEN), pool_.poolIndex, nextPoolIndex);
+            emit PoolIndexUpdated(pool_.poolLastUpdateTimeStamp, pool_.poolIndex, nextPoolIndex);
 
             pool_.poolIndex = nextPoolIndex;
             pool_.totalPoolRewardsEmitted += emittedRewards; 
@@ -472,6 +474,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
         uint256 currentTimestamp = block.timestamp > endTime ? endTime : block.timestamp;
         uint256 timeDelta = currentTimestamp - lastUpdateTimestamp;
+        
         uint256 emittedRewards = emissisonPerSecond * timeDelta;
 
         uint256 nextPoolIndex = ((emittedRewards * 10 ** PRECISION) / totalBalance) + currentPoolIndex;

@@ -34,3 +34,7 @@ how to batch?
 - https://blog.openzeppelin.com/admin-accounts-and-multisigs
 - https://www.rareskills.io/post/openzeppelin-ownable2step
 - https://coinsbench.com/how-to-safely-manage-smart-contract-ownership-cc6acbbfcc8f?gi=2ca3c9fd515c
+
+
+
+remove all instances ofthe ladele
