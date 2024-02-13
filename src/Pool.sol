@@ -184,7 +184,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         if (vault.stakedTokens == 0){    // check if first stake: eligible for bonusBall
             
             // award bonusBall rewards
-            userInfo.accRewards = vault.accounting.bonusBall;
+            userInfo.accRewards += vault.accounting.bonusBall;
             
             // overwrite vaultBaseAllocPoints w/ incoming
             vault.allocPoints = incomingAllocPoints;
@@ -449,7 +449,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
         if(nextPoolIndex != pool_.poolIndex) {
             
-            //token, oldIndex, newIndex
+            //stale timestamp, oldIndex, newIndex: emit staleTimestamp since you know the currentTimestamp upon emission
             emit PoolIndexUpdated(pool_.poolLastUpdateTimeStamp, pool_.poolIndex, nextPoolIndex);
 
             pool_.poolIndex = nextPoolIndex;
@@ -513,7 +513,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
                 // calc. prior unbooked rewards 
                 accruedRewards = _calculateRewards(vault.allocPoints, pool_.poolIndex, vault.accounting.vaultIndex);
 
-                // calc. fees
+                // calc. fees: nft fees accrued even if no nft staked. given out to 1st nft staker
                 uint256 accCreatorFee = (accruedRewards * vault.accounting.creatorFee) / 10 ** PRECISION;
                 uint256 accTotalNFTFee = (accruedRewards * vault.accounting.totalNftFee) / 10 ** PRECISION;  
 
@@ -521,8 +521,11 @@ contract Pool is ERC20, Pausable, Ownable2Step {
                 vault.accounting.totalAccRewards += accruedRewards;
                 vault.accounting.accCreatorRewards += accCreatorFee;
                 vault.accounting.accNftBoostRewards += accTotalNFTFee;
-                // rewardsAccPerNFT
-                vault.accounting.vaultNftIndex += (accTotalNFTFee / vault.stakedNfts);
+
+                if(vault.stakedNfts > 0) {
+                    // rewardsAccPerNFT
+                    vault.accounting.vaultNftIndex += (accTotalNFTFee / vault.stakedNfts);
+                }
 
             } else { // no tokens staked: no fees. only bonusBall
                 
@@ -561,9 +564,11 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         uint256 accruedRewards;
         if(userInfo.userIndex != newUserIndex) {
             if(userInfo.stakedTokens > 0) {
+                
                 // rewards from staking MOCA
                 accruedRewards = _calculateRewards(userAllocPoints, newUserIndex, userInfo.userIndex);
                 userInfo.accRewards += accruedRewards;
+
                 emit RewardsAccrued(user, accruedRewards);
             }
         }
@@ -709,3 +714,11 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     }
     
 }
+
+
+
+/**
+
+make getter fns:
+ - get updated user state, wrt to rewards. cos it will be stale as per their last txn.
+ */
