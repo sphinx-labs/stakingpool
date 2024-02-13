@@ -501,14 +501,10 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // get latest poolIndex
         (DataTypes.PoolAccounting memory pool_, uint256 latestPoolTimestamp) = _updatePoolIndex();
 
-        // note: is vault mature? not mature dont update vaultIndex(and therefore userIndex)
-        if(
-            latestPoolTimestamp > vault.endTime                           // vault has matured. vaultIndex should no longer be updated. 
-        //    || newPoolTimestamp == vault.lastUpdateTimestamp           // vaultIndex has already been updated. no new rewards or fees to account for.
-        ) {
-            
-            return(vault);  // pool updated, but not vault.
-        }
+        // If vault has matured, vaultIndex should no longer be updated, (and therefore userIndex). 
+        // pool updated, but not vault. 
+        if(latestPoolTimestamp > vault.endTime) return(vault);                                       
+
 
         uint256 accruedRewards;
         if (vault.accounting.vaultIndex != pool_.poolIndex) {

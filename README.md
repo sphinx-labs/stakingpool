@@ -22,6 +22,13 @@ vault creation check: if vaultStart + duration exceed lastDay, reject creation
 - creator and NFT fees may vary.
 - how to track rewards to users and fees in a varying manner
 
+
+## StakingPool Misc
+
+- vaults must be updated via script before `latestPoolTimestamp > vault.endTime`.
+- once poolTimestamp exceeds vault.endTime, the vault cannot be updated any more.
+- 24 hours before all vaults ought to be updated, just in case txn fails or due to sheer quantity.
+
 ## BATCHING
 
 how to batch?

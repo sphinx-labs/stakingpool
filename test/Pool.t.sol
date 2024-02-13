@@ -339,7 +339,6 @@ abstract contract StateT02 is StateT01 {
 
 }
 
-//Note: t=02, userA and userB stake.
 contract StateT02Test is StateT02 {
 
     // cannot claim
@@ -420,6 +419,7 @@ abstract contract StateT03 is StateT02 {
     }
 }
 
+//Note: check that all values are updated correctly after the 1st stake has been made into vaultA.
 contract StateT03Test is StateT03 {
 
     // check tt staking was received and recorded correctly
@@ -478,19 +478,19 @@ contract StateT03Test is StateT03 {
         
         assertEq(vaultA.allocPoints, userAPrinciple);
         assertEq(vaultA.stakedTokens, userAPrinciple); // ? 0 ?
-    /*    
+       
         // indexes
         assertEq(vaultA.accounting.vaultIndex, 1e16); 
         assertEq(vaultA.accounting.vaultNftIndex, 0); 
 
-        // rewards
-        assertEq(vaultA.accounting.totalAccRewards, 1e18); 
-        assertEq(vaultA.accounting.accNftBoostRewards, (0.1 * 1e18)); 
-        assertEq(vaultA.accounting.accCreatorRewards, (0.1 * 1e18)); 
+        // rewards (from t=2 to t=3)
+        assertEq(vaultA.accounting.totalAccRewards, 1e18);               // bonusBall rewards
+        assertEq(vaultA.accounting.accNftBoostRewards, 0);               // no nft staked. no rewwards accrued
+        assertEq(vaultA.accounting.accCreatorRewards, 0);                // no tokens staked prior to t=3. therefore no creator rewards       
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
         assertEq(vaultA.accounting.claimedRewards, 0); 
-*/
+
     }
 
     function testUserAInfo() public {
@@ -519,15 +519,125 @@ contract StateT03Test is StateT03 {
         assertEq(userA.accNftBoostRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
         assertEq(userA.claimedCreatorRewards, 0);
-
-
-        // check vault
-        //assertEq(vaultA.accounting.vaultIndex, );
-
-        //check user
     }
 }
 
+//Note: t=04,  
+//      userB stakes into VaultA. 
+//      rewards emitted frm t=3 to t-4 is allocated to userA only.
+abstract contract StateT04 is StateT03 {
+    // 
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(4);
+
+        vm.prank(userB);
+        stakingPool.stakeTokens(vaultIdA, userB, userBPrinciple);
+    }
+}
+
+contract StateT04Test is StateT04 {
+
+    // check tt staking was received and recorded correctly
+    // check pool, vault and userInfo
+
+    function testPoolInfo() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+            From t=3 to t=4, Pool emits 1e18 rewards
+            There is only 1 vault in existence, which receives the full 1e18 of rewards
+             - rewardsAccruedPerToken = 1e18 / totalAllocPoints 
+                                      = 1e18 / userAPrinciple
+                                      = 1e16 / 50e18
+                                      = 2e14
+             - poolIndex should therefore be updated to 1e16 + 2e14 = 1.02e16 (index represents rewardsPerToken since inception)
+
+            Calculating index:
+            - poolIndex = (eps * timeDelta / totalAllocPoints) + oldIndex
+             - eps: 1 
+             - oldIndex: 1e16
+             - timeDelta: 1 seconds 
+             - totalAllocPoints: 50e18
+            
+            - poolIndex = (1 * 1e18 / 50e18 ) + 1e16 = 0.02 + 1e16 = 2e14
+        */
+
+        assertEq(pool.totalAllocPoints, userAPrinciple + userBPrinciple); 
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex, 1e16);
+        assertEq(pool.poolLastUpdateTimeStamp, 3);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 1 ether);
+    }
+
+    function testVaultAInfo() public {
+
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+        /**
+            userA has staked into vaultA
+             - vault alloc points should be updated: baseVaultALlocPoint dropped, and overwritten w/ userA allocPoints
+             - stakedTokens updated
+             - vaultIndex updated
+             - fees updated
+             - rewards updated
+         */
+
+
+        /**
+         0xd56269e986134c2282b96a13731b39068404e297fc4b4b4f0b78fca7799baf69, 0x000000000000000000000000000000000000000A, 1, 2592002 [2.592e6], 1, 50000000000000000000 [5e19], 0, 0, 
+         VaultAccounting({ vaultIndex: 10000000000000000 [1e16], vaultNftIndex: 0, totalFees: 200000000000000000 [2e17], 
+         creatorFee: 100000000000000000 [1e17], totalNftFee: 100000000000000000 [1e17], totalAccRewards: 1000000000000000000 [1e18], accNftBoostRewards: 0, accCreatorRewards: 0, bonusBall: 1000000000000000000 [1e18], claimedRewards: 0 }
+         */
+        
+        assertEq(vaultA.allocPoints, userAPrinciple);
+        assertEq(vaultA.stakedTokens, userAPrinciple); // ? 0 ?
+       
+        // indexes
+        assertEq(vaultA.accounting.vaultIndex, 1e16); 
+        assertEq(vaultA.accounting.vaultNftIndex, 0); 
+
+        // rewards (from t=2 to t=3)
+        assertEq(vaultA.accounting.totalAccRewards, 1e18);               // bonusBall rewards
+        assertEq(vaultA.accounting.accNftBoostRewards, 0);               // no nft staked. no rewwards accrued
+        assertEq(vaultA.accounting.accCreatorRewards, 0);                // no tokens staked prior to t=3. therefore no creator rewards       
+        assertEq(vaultA.accounting.bonusBall, 1e18); 
+
+        assertEq(vaultA.accounting.claimedRewards, 0); 
+
+    }
+
+    function testUserAInfo() public {
+
+        DataTypes.UserInfo memory userA = getUserInfoStruct(vaultIdA, userA);
+
+        /**
+            vaultIndex = 1e16
+
+            Calculating userIndex:
+             grossUserIndex = 1e16
+             totalFees = 0.2e18
+             
+             userIndex = [1e16 * (1 - 0.2e18) / 1e18] = [1e16 * 0.8e18] / 1e18 = 8e15
+        */
+
+        assertEq(userA.stakedTokens, userAPrinciple);
+        assertEq(userA.allocPoints, userAPrinciple);
+
+        assertEq(userA.userIndex, 8e15);   // matching poolIndex
+        assertEq(userA.userNftIndex, 0);
+
+        assertEq(userA.accRewards, 1 ether);  // 1e18
+        assertEq(userA.claimedRewards, 0);
+
+        assertEq(userA.accNftBoostRewards, 0);
+        assertEq(userA.claimedNftRewards, 0);
+        assertEq(userA.claimedCreatorRewards, 0);
+    }
+}
 
 
 /**
