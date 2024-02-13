@@ -325,7 +325,6 @@ abstract contract StateT02 is StateT01 {
 
         vm.warp(2);
 
-        // vault Id: 0xaf70b64da6263772d20ce496dc028133986416edb1c1bab48e1021ef72b16b3f
         vaultIdA = generateVaultId(saltA, userA);
 
         // create vault
@@ -928,82 +927,109 @@ contract StateT06Test is StateT06 {
         assertEq(userA.claimedNftRewards, 0);
         assertEq(userA.claimedCreatorRewards, 3e17);        // 3e17: creatorFee
     }
-
 }
 
-/**
-    Scenario: Linear Mode
 
-    ** Pool info **
-    - stakingPool startTime: t1
-    - stakingStart: t2
-    - stakingPool endTime: t12
-    - duration: 11 seconds
-    - emissionPerSecond: 1e18 (1 token per second)
-    
-    ** Phase 1: t0 - t1 **
-    - stakingPool deployed
-    - stakingPool inactive
+//Note: t=07,  
+//      userC will create a new vault 
+//      two active vaults.
+abstract contract StateT07 is StateT06 {
 
-    ** Phase 1: t1 - t2 **
-    - stakingPool active
-    - no stakers
-    - 1 reward emitted in this period, that is discarded.
+    bytes32 public vaultIdC;
 
-    ** Phase 1: t2 - t11 **
-    - userA and userB stake at t2
-    - 9 rewards emitted in period
+    uint8 public saltC = 22;
+    uint256 public creatorFeeC = 0.10 * 1e18;
+    uint256 public nftFeeC = 0.10 * 1e18;
 
-        At t2: 
-        userA and userB stake all of their principle
-        - userA principle: 50 tokens (50e18)
-        - userB principle: 30 tokens (30e18)
+    function setUp() public virtual override {
+        super.setUp();
 
-        totalStaked at t2 => 80 tokens
+        vm.warp(7);
 
-        At t11:
-        calculating rewards:
-        - timeDelta: 11 - 2 = 9 seconds 
-        - rewards emitted since start: 9 * 1 = 9 tokens
-        - rewardPerShare: 9e18 / 80e18 = 0.1125 
+        vaultIdC = generateVaultId(saltC, userC);
 
-        rewards earned by A: 
-        A_principle * rewardPerShare = 50 * 0.1125 = 5.625 rewards
+        // create vault
+        vm.prank(userC);       
+        stakingPool.createVault(userC, saltC, DataTypes.VaultDuration.THIRTY, creatorFeeC, nftFeeC);
+    }    
+}
 
-        rewards earned by B: 
-        B_principle * rewardPerShare = 30 * 0.1125 = 3.375 rewards
 
-    
-    ** Phase 1: t11 - t12 **
-    - userC stakes
-    - final reward of 1 reward token is emitted at t12.
-    - Staking ends at t12
-    
-        At t11:
-        userC stakes 80 tokens
-        
-        - only 1 token left to be emitted to all stakers
+contract StateT07Test is StateT07 {
 
-        Principle staked
-        - userA: 50 + 5.625 = 55.625e18
-        - userB: 30 + 3.375 = 33.375e18
-        - userC: 80e18
+    function testPoolT07() public {
 
-        totalStaked at t10 => 169e18 (80 + 9 + 80)tokens
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+            From t=6 to t=7, Pool emits 1e18 rewards
+            There is only 1 vault in existence, which receives the full 1e18 of rewards
+             - rewardsAccruedPerToken = 1e18 / totalAllocPoints 
+                                      = 1e18 / userAPrinciple + userBPrinciple
+                                      = 1e18 / 80e18
+                                      = 1.25e16
+             - poolIndex should therefore be updated to 5.5e16 + 1.25e16 = 6.75e16 (index represents rewardsPerToken since inception)
 
-        At12:
-        calculating earned:
-        - timeDelta: 12 - 11 = 1 second
-        - rewards emitted since LastUpdateTimestamp: 1 * 1 = 1 token
-        - rewardPerShare: 1e18 / 160e18 = 0.00625
+            Calculating index:
+            - poolIndex = (eps * timeDelta * precision / totalAllocPoints) + oldIndex
+             - eps: 1e18 
+             - oldIndex: 5.5e16 
+             - timeDelta: 1 seconds 
+             - totalAllocPoints: 80e18
+            
+            - poolIndex = (1e18 * 1 * 1e18 / 80e18 ) + 5.5e16  = 1.25e16 + 5.5e16  = 6.75e16
+        */
 
-        userA additional rewards: 50 * 0.00625 = 0.3125
-        userA total rewards: 5.625 + 0.3125 = 5.9375
+        assertEq(pool.totalAllocPoints, userAPrinciple + userBPrinciple + vaultBaseAllocPoints);    //vaultC now exists
+        assertEq(pool.emissisonPerSecond, 1 ether);
 
-        userB additional rewards: 30 * 0.00625 = 0.1875
-        userB total rewards: 3.375 + 0.1875 = 3.5625
+        assertEq(pool.poolIndex, 6.75e16);
+        assertEq(pool.poolLastUpdateTimeStamp, 7);  
 
-        userC additional rewards: 80 * 0.00625 = 0.5
-        userC total rewards: 0 + 0.5 = 0.5
+        assertEq(pool.totalPoolRewardsEmitted, 5 ether);
+    }
 
-*/
+    function testNewVaultCCreated() public {
+        // check vault
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+        assertEq(vaultC.creator, userC);
+        assertEq(uint8(vaultC.duration), uint8(DataTypes.VaultDuration.THIRTY));
+        assertEq(vaultC.endTime, block.timestamp + 30 days);   
+
+        assertEq(vaultC.multiplier, 1);              // 30Day multiplier
+        assertEq(vaultC.allocPoints, 100 ether);     // baseAllocPoints: 1e20
+        assertEq(vaultC.stakedNfts, 0);
+        assertEq(vaultC.stakedTokens, 0);
+
+        // accounting
+        assertEq(vaultC.accounting.vaultIndex, 6.75e16);
+        assertEq(vaultC.accounting.vaultNftIndex, 0);
+
+        assertEq(vaultC.accounting.totalFees, creatorFeeC + nftFeeC);
+        assertEq(vaultC.accounting.creatorFee, creatorFeeC);
+        assertEq(vaultC.accounting.creatorFee, nftFeeC);
+
+        assertEq(vaultC.accounting.totalAccRewards, 0);
+        assertEq(vaultC.accounting.accNftBoostRewards, 0);
+        assertEq(vaultC.accounting.accCreatorRewards, 0);
+        assertEq(vaultC.accounting.bonusBall, 0);
+
+        assertEq(vaultC.accounting.claimedRewards, 0);
+
+    }
+}
+
+//Note: t=07,  
+//      userC will create a new vault 
+//      two active vaults.
+abstract contract StateT08 is StateT07 {
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(8);
+
+        vm.prank(userA);
+        stakingPool.stakeTokens(vaultC, onBehalfOf, amount);
+    }    
+}
