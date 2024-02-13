@@ -648,11 +648,9 @@ abstract contract StateT05 is StateT04 {
 
         vm.warp(5);
 
-        vm.prank(userA);
         stakingPool.claimRewards(vaultIdA, userA);
+        stakingPool.claimRewards(vaultIdA, userB);
 
-        //vm.prank(userB);
-        //stakingPool.claimRewards(vaultIdA, userB);
     }
 }
 
@@ -726,7 +724,7 @@ contract StateT05Test is StateT05 {
         assertEq(vaultA.accounting.accCreatorRewards, 2e17);                // no tokens staked prior to t=3. therefore no creator rewards       
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
-        assertEq(vaultA.accounting.claimedRewards, 2.3e18); 
+        assertEq(vaultA.accounting.claimedRewards, 2.3e18 + 3e17);          //userA: 2.3e18, userB: 3e17
 
     }
 
@@ -765,6 +763,41 @@ contract StateT05Test is StateT05 {
         assertEq(userA.accNftBoostRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
         assertEq(userA.claimedCreatorRewards, 0);
+    }
+
+    function testBT05() public {
+
+        DataTypes.UserInfo memory userB = getUserInfoStruct(vaultIdA, userB);
+
+        /**
+            Rewards:
+             userB should have accrued 
+             rewards from t3 to 4 = 1e18 * 0.8 * 30/80 = 3e17
+            
+            totalRewards = 3e17
+
+            Calculating userIndex:
+             vaultIndex = 4.25e16
+             grossUserIndex = 4.25e16
+             totalFees = 0.2e18
+             
+             userIndex = [4.25e16 * (1e18 - 0.2e18) / 1e18] = [4.25e16 * 0.8e18] / 1e18 = 3.4e16
+
+        */
+
+        assertEq(userB.stakedTokens, userBPrinciple);
+        assertEq(userB.allocPoints, userBPrinciple);
+
+        assertEq(userB.userIndex, 3.4e16);   // matching poolIndex
+        assertEq(userB.userNftIndex, 0);
+
+        assertEq(userB.accRewards, 3e17); 
+        assertEq(userB.claimedRewards, 3e17);
+
+        assertEq(userB.accNftBoostRewards, 0);
+        assertEq(userB.claimedNftRewards, 0);
+        assertEq(userB.claimedCreatorRewards, 0);
+
     }
 
 }

@@ -431,6 +431,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     function updateCreatorFee(bytes32 vaultId, uint256 fee )external whenNotPaused {}
     function updateNftFee(bytes32 vaultId, uint256 fee )external whenNotPaused {}
 
+
 //-------------------------------internal-------------------------------------------
     /*//////////////////////////////////////////////////////////////
                                 INTERNAL
@@ -502,48 +503,46 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         (DataTypes.PoolAccounting memory pool_, uint256 latestPoolTimestamp) = _updatePoolIndex();
 
         // If vault has matured, vaultIndex should no longer be updated, (and therefore userIndex). 
-        // pool updated, but not vault. 
-        if(latestPoolTimestamp > vault.endTime) return(vault);                                       
-
+        // IF vault has the same index as pool, the vault has already been updated to current time by a prior txn.
+        if(latestPoolTimestamp > vault.endTime || pool_.poolIndex == vault.accounting.vaultIndex) return(vault);                                       
 
         uint256 accruedRewards;
-        if (vault.accounting.vaultIndex != pool_.poolIndex) {
-            if (vault.stakedTokens > 0) {
+        if (vault.stakedTokens > 0) {
 
-                // calc. prior unbooked rewards 
-                accruedRewards = _calculateRewards(vault.allocPoints, pool_.poolIndex, vault.accounting.vaultIndex);
+            // calc. prior unbooked rewards 
+            accruedRewards = _calculateRewards(vault.allocPoints, pool_.poolIndex, vault.accounting.vaultIndex);
 
-                // calc. fees: nft fees accrued even if no nft staked. given out to 1st nft staker
-                uint256 accCreatorFee = (accruedRewards * vault.accounting.creatorFee) / 10 ** PRECISION;
-                uint256 accTotalNFTFee = (accruedRewards * vault.accounting.totalNftFee) / 10 ** PRECISION;  
+            // calc. fees: nft fees accrued even if no nft staked. given out to 1st nft staker
+            uint256 accCreatorFee = (accruedRewards * vault.accounting.creatorFee) / 10 ** PRECISION;
+            uint256 accTotalNFTFee = (accruedRewards * vault.accounting.totalNftFee) / 10 ** PRECISION;  
 
-                // book rewards: total, creator, NFT
-                vault.accounting.totalAccRewards += accruedRewards;
-                vault.accounting.accCreatorRewards += accCreatorFee;
-                vault.accounting.accNftBoostRewards += accTotalNFTFee;
+            // book rewards: total, creator, NFT
+            vault.accounting.totalAccRewards += accruedRewards;
+            vault.accounting.accCreatorRewards += accCreatorFee;
+            vault.accounting.accNftBoostRewards += accTotalNFTFee;
 
-                if(vault.stakedNfts > 0) {
-                    // rewardsAccPerNFT
-                    vault.accounting.vaultNftIndex += (accTotalNFTFee / vault.stakedNfts);
-                }
-
-            } else { // no tokens staked: no fees. only bonusBall
-                
-                // calc. prior unbooked rewards 
-                accruedRewards = _calculateRewards(vault.allocPoints, pool_.poolIndex, vault.accounting.vaultIndex);
-
-                // rewards booked to bonusBall: incentive for 1st staker
-                vault.accounting.bonusBall += accruedRewards;
-                vault.accounting.totalAccRewards += accruedRewards;
+            if(vault.stakedNfts > 0) {
+                // rewardsAccPerNFT
+                vault.accounting.vaultNftIndex += (accTotalNFTFee / vault.stakedNfts);
             }
 
-            //update vaultIndex
-            vault.accounting.vaultIndex = pool_.poolIndex;
+        } else { // no tokens staked: no fees. only bonusBall
             
-            emit VaultIndexUpdated(vault.vaultId, pool_.poolIndex, vault.accounting.totalAccRewards);
+            // calc. prior unbooked rewards 
+            accruedRewards = _calculateRewards(vault.allocPoints, pool_.poolIndex, vault.accounting.vaultIndex);
 
-            return vault;
+            // rewards booked to bonusBall: incentive for 1st staker
+            vault.accounting.bonusBall += accruedRewards;
+            vault.accounting.totalAccRewards += accruedRewards;
         }
+
+        //update vaultIndex
+        vault.accounting.vaultIndex = pool_.poolIndex;
+        
+        emit VaultIndexUpdated(vault.vaultId, pool_.poolIndex, vault.accounting.totalAccRewards);
+
+        return vault;
+
     }
 
     ///@dev called prior to affecting any state change to a user
@@ -560,13 +559,16 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
         //calc. user's allocPoints || multiplier is not updated in vaultIndex, so can be stale.
         uint256 userAllocPoints = userInfo.stakedTokens * vault.multiplier;
+        if(userInfo.allocPoints != userAllocPoints) {
+            userInfo.allocPoints = userAllocPoints;
+        }
 
         uint256 accruedRewards;
         if(userInfo.userIndex != newUserIndex) {
             if(userInfo.stakedTokens > 0) {
                 
                 // rewards from staking MOCA
-                accruedRewards = _calculateRewards(userAllocPoints, newUserIndex, userInfo.userIndex);
+                accruedRewards = _calculateRewards(userInfo.allocPoints, newUserIndex, userInfo.userIndex);
                 userInfo.accRewards += accruedRewards;
 
                 emit RewardsAccrued(user, accruedRewards);
