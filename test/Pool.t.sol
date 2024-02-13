@@ -650,7 +650,6 @@ abstract contract StateT05 is StateT04 {
 
         stakingPool.claimRewards(vaultIdA, userA);
         stakingPool.claimRewards(vaultIdA, userB);
-
     }
 }
 
@@ -738,7 +737,7 @@ contract StateT05Test is StateT05 {
              userA should have accrued 
              bonusBall: 1e18 
              rewards from t3 to 4 = 1e18 * 0.8 = 8e17
-             rewards from t3 to 4 = 1e18 * 0.8 * 50/80 = 5e17
+             rewards from t4 to 5 = 1e18 * 0.8 * 50/80 = 5e17
             
             totalRewards = 2.3e18
 
@@ -802,6 +801,135 @@ contract StateT05Test is StateT05 {
 
 }
 
+//Note: t=06,  
+//      userA will claim creator fees. 
+//      creator fees will be applicable upon rewards emitted from t3 to t6.
+//      rewards emitted frm t=2 to t=3 is categorised as bonusBall - not fees.
+//      fees become applicable from the time of 1st stake, which is t=3. 
+abstract contract StateT06 is StateT05 {
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(6);
+
+        stakingPool.claimFees(vaultIdA, userA);
+    }
+}
+
+contract StateT06Test is StateT06 {
+
+    function testPoolT06() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+            From t=5 to t=6, Pool emits 1e18 rewards
+            There is only 1 vault in existence, which receives the full 1e18 of rewards
+             - rewardsAccruedPerToken = 1e18 / totalAllocPoints 
+                                      = 1e18 / userAPrinciple + userBPrinciple
+                                      = 1e18 / 80e18
+                                      = 1.25e16
+             - poolIndex should therefore be updated to 4.25e16 + 1.25e16 = 5.5e16 (index represents rewardsPerToken since inception)
+
+            Calculating index:
+            - poolIndex = (eps * timeDelta * precision / totalAllocPoints) + oldIndex
+             - eps: 1e18 
+             - oldIndex: 4.25e16
+             - timeDelta: 1 seconds 
+             - totalAllocPoints: 80e18
+            
+            - poolIndex = (1e18 * 1 * 1e18 / 80e18 ) + 4.25e16 = 1.25e16 + 4.25e16 = 5.5e16
+        */
+
+        assertEq(pool.totalAllocPoints, userAPrinciple + userBPrinciple); 
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex, 5.5e16);
+        assertEq(pool.poolLastUpdateTimeStamp, 6);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 4 ether);
+    }
+
+    function testVaultAT06() public {
+
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+        /**
+            rewards emitted frm t=5 to t=6 is allocated to both users, proportionally. 
+
+             - vault alloc points should be updated: sum of userA and userB principles (since multplier is 1)
+             - stakedTokens updated
+             - vaultIndex updated
+             - fees updated
+             - rewards updated
+            
+            rewards & fees: 
+             [perUnitTime]
+             incomingRewards = 1e18
+             accCreatorFee = 1e18 * 0.1e18 / precision = 1e17
+             accNftBoostRewards = 1e18 * 0.1e18 / precision = 1e17
+             
+             [total]
+             accCreatorFee = 2e17 + 1e17 = 3e17
+             accNftBoostRewards = 2e17 + 1e17 = 3e17
+             totalAccRewards = totalAccRewards + incomingRewards = 3e18 + 1e18 = 4e18
+        */
+       
+        assertEq(vaultA.allocPoints, userAPrinciple + userBPrinciple);
+        assertEq(vaultA.stakedTokens, userAPrinciple + userBPrinciple); 
+       
+        // indexes: in-line with poolIndex
+        assertEq(vaultA.accounting.vaultIndex, 5.5e16); 
+        assertEq(vaultA.accounting.vaultNftIndex, 0); 
+
+        // rewards (from t=3 to t=4)
+        assertEq(vaultA.accounting.totalAccRewards, 4 ether);               
+        assertEq(vaultA.accounting.accNftBoostRewards, 3e17);               // tokens staked. rewards accrued for 1st staker.
+        assertEq(vaultA.accounting.accCreatorRewards, 3e17);                // no tokens staked prior to t=3. therefore no creator rewards       
+        assertEq(vaultA.accounting.bonusBall, 1e18); 
+
+        assertEq(vaultA.accounting.claimedRewards, 2.3e18 + 3e17 + 3e17);          //userA: 2.3e18, userB: 3e17, creatorFee: 3e17
+
+    }
+
+    function testUserAT06CreatorFee() public {
+
+        DataTypes.UserInfo memory userA = getUserInfoStruct(vaultIdA, userA);
+
+        /**
+            Rewards:
+             userA should have accrued 
+             bonusBall: 1e18 
+             rewards from t3 to 4 = 1e18 * 0.8 = 8e17
+             rewards from t4 to 5 = 1e18 * 0.8 * 50/80 = 5e17
+             rewards from t5 to 6 = 1e18 * 0.8 * 50/80 = 5e17
+             
+             totalRewards = 2.5e18
+
+             accCreatorFee@t=6 = 3 * 1e18 * 0.1e17 = 3e17 [3 periods over which the fee was levied]
+            
+             totalRewards = 2.3e18 + 3e17
+            
+            userIndex
+             vaultIndex * (1 - feeFactor) = 5.5e16 * 0.8 = 4.4e16
+
+        */
+
+        assertEq(userA.stakedTokens, userAPrinciple);
+        assertEq(userA.allocPoints, userAPrinciple);
+
+        assertEq(userA.userIndex,  4.4e16);                
+        assertEq(userA.userNftIndex, 0);
+
+        assertEq(userA.accRewards, 2.5e18 + 3e17);          // 1e18: bonusBall received,  3e17: creatorFee
+        assertEq(userA.claimedRewards, 2.3e18);      
+
+        assertEq(userA.accNftBoostRewards, 0);
+        assertEq(userA.claimedNftRewards, 0);
+        assertEq(userA.claimedCreatorRewards, 3e17);        // 3e17: creatorFee
+    }
+
+}
 
 /**
     Scenario: Linear Mode

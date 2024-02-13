@@ -74,10 +74,10 @@ contract DataTypes {
     //////////////////////////////////////////////////////////////*/
 
     struct UserInfo {
-        bytes32 vaultId;    
+        bytes32 vaultId;    //is not assigned. drop?
 
         // staked assets
-        uint256 stakedNfts;            //2^8 -1 NFTs
+        uint256 stakedNfts;            
         uint256 stakedTokens;
         uint256 allocPoints; 
 
@@ -98,4 +98,9 @@ contract DataTypes {
     }
 }
 
-// Note: could I do something with vault.lastUpdateTimestamp wrt to updatingUserIndex?
+// Note: vaultId not assigned in stakeTokens.
+// user B userInfo vaultID is 0.
+
+
+//Note: consider renaming claimedRewards -> claimedStakingRewards.
+// you got confused thinking creator was booked to it also. when its not.
