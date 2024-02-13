@@ -186,8 +186,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             // award bonusBall rewards
             userInfo.accRewards = vault.accounting.bonusBall;
             
+            // overwrite vaultBaseAllocPoints w/ incoming
             vault.allocPoints = incomingAllocPoints;
-            pool.totalAllocPoints = pool.totalAllocPoints + incomingAllocPoints - priorVaultAllocPoints; //Note: priorVaultAllocPoints = 0. must minus base
+            pool.totalAllocPoints = pool.totalAllocPoints + incomingAllocPoints - priorVaultAllocPoints;
 
         } else {
 
@@ -196,8 +197,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         }
         
         // increment stakedTokens: user, vault
-        userInfo.stakedTokens += amount;
         vault.stakedTokens += amount;
+        userInfo.stakedTokens += amount;
 
         // update storage
         vaults[vaultId] = vault;
@@ -225,6 +226,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
         vault.stakedNfts += amount;
+
+        // update multiplier
         
         //note: mint stkMocaNft?
 
