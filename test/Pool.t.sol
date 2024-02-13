@@ -1019,9 +1019,11 @@ contract StateT07Test is StateT07 {
     }
 }
 
-//Note: t=07,  
-//      userC will create a new vault 
-//      two active vaults.
+//Note: t=08,  
+//      two concurrently active vaults.
+//      rewards emitted frm t=7 to t=8 is proportionally split across both vaults as per weightage
+//      userC stakes into vaultC. 1st staker, beneficiary of bonusBall.
+//      vault's alloc points are overwritten, reflective of staked amount 
 abstract contract StateT08 is StateT07 {
 
     function setUp() public virtual override {
@@ -1029,7 +1031,180 @@ abstract contract StateT08 is StateT07 {
 
         vm.warp(8);
 
-        vm.prank(userA);
-        stakingPool.stakeTokens(vaultC, onBehalfOf, amount);
+        vm.prank(userC);
+        stakingPool.stakeTokens(vaultIdC, userC, userCPrinciple / 2);
     }    
+}
+
+contract StateT08Test is StateT08 {
+    function testPoolT08() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+            From t=7 to t=8, Pool emits 1e18 rewards
+            There are 2 vaults in existence, receiving a proportional split of rewards:
+             
+             vaultA allocPoints = userAPrinciple + userBPrinciple = 80e18
+             vaultC allocPoints = vaultBaseAllocPoints = 100e18
+            
+            totalAllocPoints = 80e18 + 100e18 = 180e18
+
+
+             - rewardsAccruedPerToken = 1e18 / totalAllocPoints 
+                                      = 1e18 / 180e18
+                                      = 5.555555... e15
+             - poolIndex should therefore be updated to 6.75e16 + 5.55e15 = 7.305e16 (index represents rewardsPerToken since inception)
+
+            Calculating index:
+            - poolIndex = (eps * timeDelta * precision / totalAllocPoints) + oldIndex
+             - eps: 1e18 
+             - oldIndex: 6.75e16
+             - timeDelta: 1 seconds 
+             - totalAllocPoints: 180e18
+            
+            - poolIndex = (1e18 * 1 * 1e18 / 180e18 ) + 6.75e16  = 5.55e15 + 6.75e16  = 7.305e16
+        */
+
+        assertEq(pool.totalAllocPoints, userAPrinciple + userBPrinciple + userCPrinciple/2);    //vaultC now exists
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex/1e13, 7.305e16/1e13);     //rounding: to negate recurring decimals
+        assertEq(pool.poolLastUpdateTimeStamp, 8);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 6 ether);
+    }
+
+    function testVaultCT08() public {
+
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+        /** 
+            1st staking action into vaultC; by userC.
+            rewards emitted frm t=7 to t=8 is allocated to userC as bonusBall 
+
+             - vault alloc points should be updated: userCPrinciple/2
+             - stakedTokens updated
+             - vaultIndex updated
+             - fees updated
+             - rewards updated
+            
+            rewards & fees: 
+             [perUnitTime]
+             incomingRewards = 1e18 / 180e18 * 100e18 = 5.55555e17
+             accCreatorFee = 0
+             accNftBoostRewards = 0
+             
+             [total]
+             accCreatorFee = 0
+             accNftBoostRewards = 0
+             totalAccRewards = 5.55555e17
+             bonusBall = 5.55555e17
+        */
+       
+        assertEq(vaultC.allocPoints, userCPrinciple/2);
+        assertEq(vaultC.stakedTokens, userCPrinciple/2); 
+       
+        // indexes: in-line with poolIndex
+        assertEq(vaultC.accounting.vaultIndex/1e13, 7.305e16/1e13);             //rounding: to negate recurring decimals
+        assertEq(vaultC.accounting.vaultNftIndex, 0); 
+
+        // rewards (from t=3 to t=4)
+        assertEq(vaultC.accounting.totalAccRewards/1e14, 5.555e17/1e14);             //rounding: to negate recurring decimals    
+        assertEq(vaultC.accounting.accNftBoostRewards, 0);              
+        assertEq(vaultC.accounting.accCreatorRewards, 0);                
+        assertEq(vaultC.accounting.bonusBall/1e14, 5.555e17/1e14);                   //rounding: to negate recurring decimals
+
+        assertEq(vaultC.accounting.claimedRewards, 0);     
+      
+    }
+
+    function testUserCT08() public {
+
+        DataTypes.UserInfo memory userC = getUserInfoStruct(vaultIdC, userC);
+
+        /**
+            Rewards:
+             userC should have accrued 
+             bonusBall: 5.555..5e17
+             
+             totalRewards = 5.555..5e17
+
+            userIndex
+             vaultIndex * (1 - feeFactor) = 7.305e16 * 0.8 = 5.844e16
+
+        */
+
+        assertEq(userC.stakedTokens, userCPrinciple/2);
+        assertEq(userC.allocPoints, userCPrinciple/2);
+
+        assertEq(userC.userIndex/1e13,  5.844e16/1e13);                
+        assertEq(userC.userNftIndex, 0);
+
+        assertEq(userC.accRewards/1e14, 5.555e17/1e14);          // bonusBall received
+        assertEq(userC.claimedRewards, 0);      
+
+        assertEq(userC.accNftBoostRewards, 0);
+        assertEq(userC.claimedNftRewards, 0);
+        assertEq(userC.claimedCreatorRewards, 0);        
+
+    }
+
+}
+
+//Note: t=09,  
+//      two concurrently active vaults.
+//      rewards emitted frm t=8 to t=9 are proportionally split across both vaults as per weightage.
+//      userC stakes into vaultC again.
+abstract contract StateT09 is StateT08 {
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(9);
+
+        vm.prank(userC);
+        stakingPool.stakeTokens(vaultIdC, userC, userCPrinciple / 2);
+    }    
+}
+
+contract StateT09Test is StateT09 {
+
+    function testPoolT09() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+            From t=8 to t=9, Pool emits 1e18 rewards
+            There are 2 vaults in existence, receiving a proportional split of rewards:
+             
+             vaultA allocPoints = userAPrinciple + userBPrinciple = 80e18
+             vaultC allocPoints = userCPrinciple = 80e18
+            
+            totalAllocPoints = 80e18 + 80e18 = 160e18
+
+
+             - rewardsAccruedPerToken = 1e18 / totalAllocPoints 
+                                      = 1e18 / 120e18
+                                      = 8.333e15
+             - poolIndex should therefore be updated to 7.305e16 + 8.333e15 = 8.138e16 (index represents rewardsPerToken since inception)
+
+            Calculating index:
+            - poolIndex = (eps * timeDelta * precision / totalAllocPoints) + oldIndex
+             - eps: 1e18 
+             - oldIndex: 7.305e16
+             - timeDelta: 1 seconds 
+             - totalAllocPoints: 120e18
+            
+            - poolIndex = (1e18 * 1 * 1e18 / 120e18 ) + 7.305e16 = 8.333e15 + 7.305e16  = 8.138e16
+        */
+
+        assertEq(pool.totalAllocPoints, userAPrinciple + userBPrinciple + userCPrinciple);    //vaultC now exists
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex/1e13, 8.138e16/1e13);     //rounding: to negate recurring decimals
+        assertEq(pool.poolLastUpdateTimeStamp, 9);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 7 ether);
+    }
+
+    
 }
