@@ -45,3 +45,7 @@ how to batch?
 
 
 remove all instances ofthe ladele
+
+
+restrict fns on stakingPoolL: onlyAdmin
+users must user router to publicly call 

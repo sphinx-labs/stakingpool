@@ -1523,18 +1523,9 @@ contract StateVaultAEndsTest is StateVaultAEnds {
               totalRewards * feeFactor = 1.296e24 * 0.2 = 2.592e23
               accCreatorFee = 1.296e24 * 0.1 = 1.296e23
               totalAccRewards = 1.296e24 * 0.1 = 1.296e23
-
-            
-            rewards & fees: (frm t10 - 2_592_002)
-             [perUnitTime]
-             incomingRewards = 1e18
-             accCreatorFee = 1e18 * 0.1e18 / precision = 1e17
-             accNftBoostRewards = 1e18 * 0.1e18 / precision = 1e17
+ 
+            userA claim: (t10 - t2_592_002)
              
-             [total]
-             accCreatorFee = 2e17 + 1e17 = 3e17
-             accNftBoostRewards = 2e17 + 1e17 = 3e17
-             totalAccRewards = totalAccRewards + incomingRewards = 3e18 + 1e18 = 4e18
         */
        
         assertEq(vaultA.allocPoints, userAPrinciple + userBPrinciple);
@@ -1550,7 +1541,106 @@ contract StateVaultAEndsTest is StateVaultAEnds {
         assertEq(vaultA.accounting.accCreatorRewards/1e20, 1.296e23/1e20);                // no tokens staked prior to t=3. therefore no creator rewards       
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
-        assertEq(vaultA.accounting.claimedRewards, 2.3e18 + 3e17 + 3e17);          //userA: 2.3e18, userB: 3e17, creatorFee: 3e17
-
+        assertEq(vaultA.accounting.claimedRewards, 6.48e23 + 3e17 + 3e17);          //userA: 6.48e23, userB: 3e17, creatorFee: 3e17
+            //648002705555555555555500 - 648002105555555555555500
     } 
+
+    function testUserAVaultAEnds() public {
+
+        DataTypes.UserInfo memory userA = getUserInfoStruct(vaultIdA, userA);
+
+        /**
+            Rewards:
+             userA should have accrued 
+             t2 to 3: bonusBall: 1e18 
+             rewards from t3 to 4 = 1e18 * 0.8 = 8e17
+             rewards from t4 to 5 = 1e18 * 0.8 * 50/80 = 5e17
+             rewards from t5 to 6 = 1e18 * 0.8 * 50/80 = 5e17
+             rewards from t6 to 7 = 1e18 * 0.8 * 50/80 = 5e17   
+
+             rewards from t7 to 8 = 4.444e17 * 0.8 * 50/80 = 2.222e17   (vaultC created at t7)
+             rewards from t8 to 9 = 6.666e17 * 0.8 * 50/80 = 3.333e17   (userC stakes at t8)
+             rewards from t8 to 9 = 5e17 * 0.8 * 50/80 = 2.5e17         (userC stakes again at t9)
+             
+             rewards from t9 to 2,592,002 = (5e17 * 0.8 * 50/80) * 2_591_993 = 6.4799825e23
+
+             totalRewards = ~ 6.48e23
+                
+             accCreatorFee = totalRewards * 0.1 = ~ 6.48e22
+                        
+            userIndex
+             vaultIndex * (1 - feeFactor) = 1.62e22 * 0.8 = 1.296e22
+
+        */
+
+        assertEq(userA.stakedTokens, userAPrinciple);
+        assertEq(userA.allocPoints, userAPrinciple);
+
+        assertEq(userA.userIndex/1e18,  1.296e22/1e18);                
+        assertEq(userA.userNftIndex, 0);
+
+        // accRewards == claimed 
+        assertEq(userA.accRewards, userA.claimedRewards);      
+        assertEq(userA.accRewards/1e20, 6.48e23/1e20);           
+        assertEq(userA.claimedRewards/1e20, 6.48e23/1e20);      
+
+        assertEq(userA.accNftBoostRewards, 0);
+        assertEq(userA.claimedNftRewards, 0);
+        assertEq(userA.claimedCreatorRewards, 3e17);        // 3e17: creatorFee
+    }
+
+    function testUserACanUnstake() public {}
+
+    function testUserACanClaimCreatorFees() public {}
+
+   
 }
+
+
+
+//Note: t=2 + 30days + 1,  | 2,592,003
+//      1 second after vaultA has ended
+//      ensure update indexes remain static.
+abstract contract StateT2_592_003 is StateVaultAEnds {
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        uint256 vaultAEndtTimePlusOne = 2 + 30 days + 1;   // 2,592,003
+        vm.warp(vaultAEndtTimePlusOne);
+
+        // vault index should not be updated since ended
+        stakingPool.updateVault(vaultIdA);
+    }   
+}
+
+contract StateT2_592_003Test is StateT2_592_003 {
+
+    function testVaultAIndexNotUpdated() public {
+
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+        // indexes: in-line with poolIndex@t2_592_002
+        assertEq(vaultA.accounting.vaultIndex/1e18, 1.62e22/1e18); 
+        assertEq(vaultA.accounting.vaultNftIndex, 0); 
+    }
+
+    function testUserBCanUnstake() public {
+        vm.prank(userB);
+        stakingPool.unstakeAll(vaultIdA, userB);
+        
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+
+    }
+
+    function testUserBCanClaim() public {}
+}
+
+
+
+
+/**
+A claims: 6.479e23
+B claims: 3.887e23
+ */

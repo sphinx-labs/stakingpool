@@ -65,7 +65,7 @@ contract DataTypes {
         uint256 accCreatorRewards;    
         uint256 bonusBall;
 
-        uint256 claimedRewards;
+        uint256 claimedRewards;     //note: make it totalClaimed. cos it records creator
     }
 
 
