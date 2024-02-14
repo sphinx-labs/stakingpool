@@ -1206,5 +1206,109 @@ contract StateT09Test is StateT09 {
         assertEq(pool.totalPoolRewardsEmitted, 7 ether);
     }
 
+
+    function testVaultCT09() public {
+        
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+        /** 
+            2nd staking action into vaultC; by userC.
+            rewards emitted frm t=7 to t=8 is allocated to userC as bonusBall 
+            rewards emitted frm t=8 to t=9 is allocated to userC as per userC's allocPoints (userCPrinciple/2)
+            fees are applied frm t=8 to t=9
+
+             - vault alloc points should be updated: userCPrinciple
+             - stakedTokens updated
+             - vaultIndex updated
+             - fees updated
+             - rewards updated
+            
+            rewards & fees: 
+             [perUnitTime]
+             incomingRewards = 1e18 / 120e18 * 40e18 = 3.33333e17
+             accCreatorFee = 3.33333e17 * 0.1e18 / precision = 3.33333e16
+             accNftBoostRewards = 3.33333e17 * 0.1e18 / precision = 3.33333e16
+             
+             [total]
+             accCreatorFee = 3.33333e16
+             accNftBoostRewards = 3.33333e16
+             totalAccRewards = 5.55555e17 + 3.33333e17 = 8.8888e17
+             bonusBall = 5.55555e17
+        */
+       
+        assertEq(vaultC.allocPoints, userCPrinciple);
+        assertEq(vaultC.stakedTokens, userCPrinciple); 
+       
+        // indexes: in-line with poolIndex
+        assertEq(vaultC.accounting.vaultIndex/1e13, 8.138e16/1e13);             //rounding: to negate recurring decimals
+        assertEq(vaultC.accounting.vaultNftIndex, 0); 
+
+        // rewards 
+        assertEq(vaultC.accounting.totalAccRewards/1e14, 8.888e17/1e14);             //rounding: to negate recurring decimals    
+        assertEq(vaultC.accounting.accNftBoostRewards/1e12, 3.3333e16/1e12);              
+        assertEq(vaultC.accounting.accCreatorRewards/1e12, 3.3333e16/1e12);                
+        assertEq(vaultC.accounting.bonusBall/1e14, 5.555e17/1e14);                   //rounding: to negate recurring decimals
+
+        assertEq(vaultC.accounting.claimedRewards, 0);     
+      
+    }
     
+    function testUserCT09() public {
+
+        DataTypes.UserInfo memory userC = getUserInfoStruct(vaultIdC, userC);
+
+        /**
+            userIndex
+             vaultIndex * (1 - feeFactor) = 8.1388888e16 * 0.8 = 6.5111111e16
+
+            Rewards: (referencing prior VaultC's calc)
+             userC should have accrued 
+             bonusBall: 5.555..5e17
+             rewards: 3.33333e17
+             total = 8.8888e17
+
+            Rewards received (actual User calc.)
+             received = userIndexDelta * allocPoints
+                      = (6.5111111e16 - 5.844e16) * 40e18
+                      = 2.66844..4e17
+             total = bonusBall + 2.66844..4e17
+                   =  5.555..5e17 + 2.66844..4e17
+                   =  ~ 8.223944e17
+        */
+
+        assertEq(userC.stakedTokens, userCPrinciple);
+        assertEq(userC.allocPoints, userCPrinciple);
+
+        assertEq(userC.userIndex/1e13,  6.511e16/1e13);            // rounding    
+        assertEq(userC.userNftIndex, 0);
+
+        assertEq(userC.accRewards/1e14, 8.222e17/1e14);          // bonusBall received
+        assertEq(userC.claimedRewards, 0);      
+
+        assertEq(userC.accNftBoostRewards, 0);
+        assertEq(userC.claimedNftRewards, 0);
+        assertEq(userC.claimedCreatorRewards, 0);        
+
+    }
+
+}
+
+//Note: t=10,  
+//      two concurrently active vaults.
+//      rewards emitted frm t=8 to t=9 are proportionally split across both vaults as per weightage.
+//      userC stakes into vaultC again.
+abstract contract StateT10 is StateT09 {
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(10);
+
+        vm.prank(userC);
+        stakingPool.stakeTokens(vaultIdC, userC, userCPrinciple / 2);
+    }    
+}
+
+contract StateT10Test is StateT10 {
+
 }
