@@ -425,7 +425,10 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     ///@dev to prevent index drift
     function updateVault(bytes32 vaultId) external whenNotPaused {
         DataTypes.Vault memory vault = vaults[vaultId];
-        _updateVaultIndex(vault);
+        DataTypes.Vault memory vault_ = _updateVaultIndex(vault);
+
+        //update storage
+        vaults[vaultId] = vault_;
     }
 
     function updateCreatorFee(bytes32 vaultId, uint256 fee )external whenNotPaused {}

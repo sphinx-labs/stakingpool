@@ -8,17 +8,17 @@ contract DataTypes {
     //////////////////////////////////////////////////////////////*/
 
     struct PoolAccounting {
-    // rewards: x
-    uint256 totalAllocPoints;                // totalBalanceBoosted
-    uint256 emissisonPerSecond;           
-  
-    // rewards: y
-    uint256 poolIndex;                       // rewardsAccPerAllocPoint (to date) || rewards are booked into index
-    uint256 poolLastUpdateTimeStamp;  
+        // rewards: x
+        uint256 totalAllocPoints;                // totalBalanceBoosted
+        uint256 emissisonPerSecond;           
     
-    // for updating emissions
-    uint256 totalPoolRewards;                // prevent ddos rewards 
-    uint256 totalPoolRewardsEmitted;         // prevent ddos rewards vault
+        // rewards: y
+        uint256 poolIndex;                       // rewardsAccPerAllocPoint (to date) || rewards are booked into index
+        uint256 poolLastUpdateTimeStamp;  
+        
+        // for updating emissions
+        uint256 totalPoolRewards;                // prevent ddos rewards 
+        uint256 totalPoolRewardsEmitted;         // prevent ddos rewards vault
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -85,7 +85,7 @@ contract DataTypes {
         uint256 userIndex; 
         uint256 userNftIndex;
 
-        //rewards: tokens
+        //rewards: tokens (only from tokens)
         uint256 accRewards;
         uint256 claimedRewards;
 
@@ -104,3 +104,5 @@ contract DataTypes {
 
 //Note: consider renaming claimedRewards -> claimedStakingRewards.
 // you got confused thinking creator was booked to it also. when its not.
+// in the same vein accRewards
+// accStakingRewards, claimedStakingRewards  ?
