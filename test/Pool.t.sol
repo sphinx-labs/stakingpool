@@ -1886,11 +1886,14 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         stakingPool.claimRewards(vaultIdC, userC);
         vm.stopPrank();
 
-        DataTypes.UserInfo memory userCInfo = getUserInfoStruct(vaultIdA, userA);
-        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+        DataTypes.UserInfo memory userCInfo = getUserInfoStruct(vaultIdC, userC);
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
         
         /**
-            Rewards:
+            userIndex & rewardsAccPerToken
+             1.62e22 * (1 - feeFactor) = 1.62e22 * 0.8 = ~ 1.295e22 
+
+            Rewards: accRewards + claimedRewards
              userC should have accrued all the rewards from vaultC
              5.555e17 + (1.296e24 * 0.8) = 1.0368e24
             
@@ -1899,29 +1902,34 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
 
             Total Token balance:
              1.0368e24 + 2.592e23 = 1.296e24
-            
-            userIndex
-             vaultIndex * (1 - feeFactor) = 1.62e22 * 0.8 = 1.296e22 
+
+
+            accCreatorFee = 1.296e24 * 0.1 = 1.296e23
+
         */
 
         assertEq(userCInfo.stakedTokens, 0);
 
-        assertEq(userCInfo.userIndex/1e18,  1.296e22/1e18);                
+        assertEq(userCInfo.userIndex/1e19,  1.295e22/1e19);                
         assertEq(userCInfo.userNftIndex, 0);
-        assertEq(userCInfo.userIndex,  vaultA.accounting.rewardsAccPerToken);
+        assertEq(userCInfo.userIndex,  vaultC.accounting.rewardsAccPerToken);
 
         // accRewards == claimed 
-        assertEq(userCInfo.accRewards, userCInfo.claimedRewards);      
-        assertEq(userCInfo.accRewards/1e20, 6.48e23/1e20);           
-        assertEq(userCInfo.claimedRewards/1e20, 6.48e23/1e20);      
+        assertEq(userCInfo.accRewards, userCInfo.claimedRewards);    
+
+        assertEq(userCInfo.accRewards/1e21, 1.036e24/1e21);           
+        assertEq(userCInfo.claimedRewards/1e21, 1.036e24/1e21);      
 
         assertEq(userCInfo.accNftBoostRewards, 0);
         assertEq(userCInfo.claimedNftRewards, 0);
-        assertEq(userCInfo.claimedCreatorRewards, 3e17);        // 3e17: creatorFee 
+        assertEq(userCInfo.claimedCreatorRewards/1e20, 1.295e23/1e20);       
 
         // check token balance
-        //assertEq(mocaToken.balanceOf(userC), 1.296e24);
-
+        uint256 rewardsFeesAndBonusBall = vaultC.accounting.claimedRewards;
+        assertEq(mocaToken.balanceOf(userC)/1e18, rewardsFeesAndBonusBall/1e18);
+        // mocaBal:1166479955555555555555472
+        // claimedRewards: 1166399955555555555555472     
+        // 8e19           
     }
 
     function testUserACanUnstake() public {}
@@ -1929,3 +1937,11 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
     function testUserACanClaimCreatorFees() public {}
 
 }
+
+
+
+
+/**
+
+what happens to NFT fees if no one claims?
+ */
