@@ -349,11 +349,13 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         }
 
         if(stakedTokens > 0){
+            // update stakedTokens
             vault.stakedTokens -= stakedTokens;
             userInfo.stakedTokens -= stakedTokens;
             
-            // update storage: pool
-            pool.totalAllocPoints -= allocPoints;
+            // update allocPoints
+            vault.allocPoints -= allocPoints;
+            pool.totalAllocPoints -= allocPoints;       // update storage: pool
 
             // burn stkMOCA
             _burn(onBehalfOf, stakedTokens);
@@ -369,67 +371,6 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         if(stakedTokens > 0) STAKED_TOKEN.safeTransfer(onBehalfOf, stakedTokens); 
     }
 
-    function unstakeNfts(bytes32 vaultId, address onBehalfOf) external whenStarted whenNotPaused {
-        // usual blah blah checks
-        require(vaultId > 0, "Invalid vaultId");
-
-        // get vault + check if has been created
-       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
-
-        // check if vault has matured
-        if(block.timestamp < vault_.endTime) revert Errors.VaultNotMatured(vaultId);
-        // revert if 0 balance
-        if(userInfo_.stakedNfts == 0) revert Errors.UserHasNoNftStaked(vaultId, onBehalfOf);
-
-        // update indexes and book all prior rewards
-        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
-        
-        uint256 stakedNfts = userInfo.stakedNfts;
-
-        //update balances: user + vault
-        userInfo.stakedNfts = 0;
-        vault.stakedNfts -= stakedNfts;
-        
-        //_burn NFT chips?
-        emit UnstakedMocaNft(onBehalfOf, vaultId, stakedNfts);   
-
-        // return NFT chips
-        LOCKED_NFT_TOKEN.safeTransfer(onBehalfOf, stakedNfts);
-    }
-
-    function unstakeTokens(bytes32 vaultId, address onBehalfOf) external whenStarted whenNotPaused {
-        // usual blah blah checks
-        require(vaultId > 0, "Invalid vaultId");
-
-        // get vault + check if has been created
-       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
-
-        // check if vault has matured
-        if(block.timestamp < vault_.endTime) revert Errors.VaultNotMatured(vaultId);
-        // revert if 0 balance
-        if(userInfo_.stakedTokens == 0) revert Errors.UserHasNoTokenStaked(vaultId, onBehalfOf);
-
-        // update indexes and book all prior rewards
-        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
-
-        //get user balances
-        uint256 stakedTokens = userInfo.stakedTokens;
-        
-        //update balances: user + vault
-        vault.stakedTokens -= stakedTokens;
-        userInfo.stakedNfts -= stakedTokens;
-        
-        // burn stkMOCA
-        _burn(onBehalfOf, stakedTokens);
-        emit UnstakedMoca(onBehalfOf, vaultId, stakedTokens);       
-    
-        // update storage
-        vaults[vaultId] = vault;
-        users[onBehalfOf][vaultId] = userInfo;
-
-        // return principal MOCA
-        STAKED_TOKEN.safeTransfer(onBehalfOf, stakedTokens); 
-    }
     
     ///@dev to prevent index drift
     function updateVault(bytes32 vaultId) external whenStarted whenNotPaused {
@@ -743,3 +684,70 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 make getter fns:
  - get updated user state, wrt to rewards. cos it will be stale as per their last txn.
  */
+
+
+
+ /**
+     function unstakeNfts(bytes32 vaultId, address onBehalfOf) external whenStarted whenNotPaused {
+        // usual blah blah checks
+        require(vaultId > 0, "Invalid vaultId");
+
+        // get vault + check if has been created
+       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
+
+        // check if vault has matured
+        if(block.timestamp < vault_.endTime) revert Errors.VaultNotMatured(vaultId);
+        // revert if 0 balance
+        if(userInfo_.stakedNfts == 0) revert Errors.UserHasNoNftStaked(vaultId, onBehalfOf);
+
+        // update indexes and book all prior rewards
+        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+        
+        uint256 stakedNfts = userInfo.stakedNfts;
+
+        //update balances: user + vault
+        userInfo.stakedNfts = 0;
+        vault.stakedNfts -= stakedNfts;
+        
+        //_burn NFT chips?
+        emit UnstakedMocaNft(onBehalfOf, vaultId, stakedNfts);   
+
+        // return NFT chips
+        LOCKED_NFT_TOKEN.safeTransfer(onBehalfOf, stakedNfts);
+    }
+
+    function unstakeTokens(bytes32 vaultId, address onBehalfOf) external whenStarted whenNotPaused {
+        // usual blah blah checks
+        require(vaultId > 0, "Invalid vaultId");
+
+        // get vault + check if has been created
+       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
+
+        // check if vault has matured
+        if(block.timestamp < vault_.endTime) revert Errors.VaultNotMatured(vaultId);
+        // revert if 0 balance
+        if(userInfo_.stakedTokens == 0) revert Errors.UserHasNoTokenStaked(vaultId, onBehalfOf);
+
+        // update indexes and book all prior rewards
+        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+
+        //get user balances
+        uint256 stakedTokens = userInfo.stakedTokens;
+        
+        //update balances: user + vault
+        vault.stakedTokens -= stakedTokens;
+        userInfo.stakedNfts -= stakedTokens;
+        
+        // burn stkMOCA
+        _burn(onBehalfOf, stakedTokens);
+        emit UnstakedMoca(onBehalfOf, vaultId, stakedTokens);       
+    
+        // update storage
+        vaults[vaultId] = vault;
+        users[onBehalfOf][vaultId] = userInfo;
+
+        // return principal MOCA
+        STAKED_TOKEN.safeTransfer(onBehalfOf, stakedTokens); 
+    }
+ 
+  */

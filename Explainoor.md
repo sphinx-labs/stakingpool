@@ -1,5 +1,18 @@
 # Explainoooor
 
+pool -> vault
+- operate on allocPOints
+- vault.allocPoints
+
+:: vault.allocPoints::
+- updated in create, based on duration
+- update in stake, based on stake amount: incomingAllocPoints = (amount * vault.multiplier)
+
+internal to a vault
+- can operate on token values
+- convert vaultIndex(rewardsAccPerAllocPoint) to vaultIndex(rewardsAccPerToken)
+- userIndex(rewardsAccPerToken)
+
 ## Dependencies
 
 forge install  openzeppelin/openzeppelin-contracts@v5.0.1

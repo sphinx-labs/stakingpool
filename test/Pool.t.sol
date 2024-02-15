@@ -1759,9 +1759,9 @@ abstract contract StateTVaultCEnds is StateT2_592_003 {
 
         vm.warp(7 + 30 days);  // 2592007
 
-        // update vaults
+        // unstake all - to update all user's states
         stakingPool.unstakeAll(vaultIdA, userA);
-        stakingPool.unstakeAll(vaultIdB, userB);
+        stakingPool.unstakeAll(vaultIdA, userB);
 
         stakingPool.unstakeAll(vaultIdC, userC);
     }   
@@ -1803,15 +1803,87 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
              - totalAllocPoints: 80e18
             
             - poolIndex = (1e18 * 5 * 1e18 / 80e18 ) + 1.622e22 = 6.25e16 + 1.622e22 = ~ 1.622e22
+
+            On totalPoolRewardsEmitted:
+             - pool only begins emitting rewards when the first vault is created. 
+             - so from t=0 to t=2, nothing was emitted. 
+             - hence at this time, the totalPoolRewardsEmitted is the number of seconds in ether, less 2. 
         */
 
-        assertEq(pool.totalAllocPoints, 0);                        // userC unstaked
+        assertEq(pool.totalAllocPoints, 0);                        
         assertEq(pool.emissisonPerSecond, 1 ether);
 
         assertEq(pool.poolIndex/1e18, 1.62e22/1e18);             //rounding: to negate recurring decimals
         assertEq(pool.poolLastUpdateTimeStamp, 2_592_007);  
 
-        assertEq(pool.totalPoolRewardsEmitted, 2_592_007 ether);
+        assertEq(pool.totalPoolRewardsEmitted, (2_592_007 - 2) * 1 ether);
     }
+
+    function testVaultCTEnds() public {
+
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+        /**
+            Total rewards accrued by vaultC
+             startTime = 7, endTime = 2,592,007 (30 days)
+             
+             t7 - t8:  1e18 * 100/180 = 5.555e17                       (vaultC created at t7: no stake, calc based on baseVaultAllocPoints)
+             --------------------------------------------------------------------------------------------------------------------------------
+             t8 - t9:  1e18 * 40/120 = 3.333e17                        (userC stakes 40 ether at t8)
+             t9 - t10: 1e18 * 80/160 = 5e17                            (userC stakes again at t9)
+             t10 - t2,592,002: 2,591,992 e18 * 80/160 = 1.2959e24      (rewards split btw vaultA and C)
+             t2,592,002 - t2,592,007: 5e18                             (all rewards goes to vaultC)
+
+            Total Rewards: 
+             3.333e17 + 5e17 + 1.2959e24 + 5e18     (bonusBall has no fees)
+             = 1.2959063888 × 10^24
+             ~ 1.296e24
+
+            Total Fees:
+              totalRewards * feeFactor = 1.296e24 * 0.2 = 2.592e23
+              accCreatorFee = 1.296e24 * 0.1 = 1.296e23
+              totalAccRewards = 1.296e24 * 0.1 = 1.296e23
+             
+            Calculating rewardsAccPerToken:           
+             totalRewards = ~ 1.2959e24
+             totalRewardsLessFees = ~ 1.0367e24
+
+             [t7 - t10]: 
+             rewardsAccPerToken = ~ 1.1666e16
+
+             [t10 - t2_592_007]
+             rewardsAccPerToken += incomingRewards - fees / 80e18 
+                                 = [(1.2959e24 + 5e18) * 0.8] * 1e18 / 80e18  
+                                 = ~ 1.295905 e22
+
+             rewardsAccPerToken = 1.1666e16 + 1.295905e22
+                                = 1.2959061666×10^22
+                                = ~ 1.295e22     
+            ClaimedRewards:
+             user claimed rewards at t10
+             rewardsClaimed: 5.555e17 + 0.8(3.333e17 + 5e17) = ~ 1.222e18
+        */
+
+        assertEq(vaultC.allocPoints, 0);
+        assertEq(vaultC.stakedTokens, 0); 
+       
+        // indexes: in-line with poolIndex
+        assertEq(vaultC.accounting.vaultIndex/1e18, 1.62e22/1e18);  
+        assertEq(vaultC.accounting.vaultNftIndex, 0); 
+        assertEq(vaultC.accounting.rewardsAccPerToken/1e19, 1.295e22/1e19);  
+
+        // rewards (from t=3 to t=4)
+        assertEq(vaultC.accounting.totalAccRewards/1e21, 1.295e24/1e21);               
+        assertEq(vaultC.accounting.accNftBoostRewards/1e20, 1.295e23/1e20);               // tokens staked. rewards accrued for 1st staker.
+        assertEq(vaultC.accounting.accCreatorRewards/1e20, 1.295e23/1e20);                // no tokens staked prior to t=3. therefore no creator rewards       
+        assertEq(vaultC.accounting.bonusBall/1e14, 5.555e17/1e14); 
+        
+        assertEq(vaultC.accounting.claimedRewards/1e15, 1.222e18/1e15);                   //userA: 6.48e23, userB: 3e17, creatorFee: 3e17
+    } 
+
+
+    function testUserACanUnstake() public {}
+
+    function testUserACanClaimCreatorFees() public {}
 
 }
