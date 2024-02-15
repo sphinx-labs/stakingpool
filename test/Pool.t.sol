@@ -375,8 +375,6 @@ contract StateT02Test is StateT02 {
 
     function testCanStake() public {
         
-        stakingPool.testWrapper(vaultIdA, userA, 1e18);
-
         vm.prank(userA);
         stakingPool.stakeTokens(vaultIdA, userA, 1e18);
         // check events
@@ -1819,7 +1817,7 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         assertEq(pool.totalPoolRewardsEmitted, (2_592_007 - 2) * 1 ether);
     }
 
-    function testVaultCTEnds() public {
+    function testVaultCEnds() public {
 
         DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
 
@@ -1881,6 +1879,50 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         assertEq(vaultC.accounting.claimedRewards/1e15, 1.222e18/1e15);                   //userA: 6.48e23, userB: 3e17, creatorFee: 3e17
     } 
 
+    function testUserCVaultCEnds() public {
+        
+        vm.startPrank(userC);
+        stakingPool.claimFees(vaultIdC, userC);
+        stakingPool.claimRewards(vaultIdC, userC);
+        vm.stopPrank();
+
+        DataTypes.UserInfo memory userCInfo = getUserInfoStruct(vaultIdA, userA);
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+        
+        /**
+            Rewards:
+             userC should have accrued all the rewards from vaultC
+             5.555e17 + (1.296e24 * 0.8) = 1.0368e24
+            
+            Fees:
+             (1.296e24 * 0.2) = 2.592e23
+
+            Total Token balance:
+             1.0368e24 + 2.592e23 = 1.296e24
+            
+            userIndex
+             vaultIndex * (1 - feeFactor) = 1.62e22 * 0.8 = 1.296e22 
+        */
+
+        assertEq(userCInfo.stakedTokens, 0);
+
+        assertEq(userCInfo.userIndex/1e18,  1.296e22/1e18);                
+        assertEq(userCInfo.userNftIndex, 0);
+        assertEq(userCInfo.userIndex,  vaultA.accounting.rewardsAccPerToken);
+
+        // accRewards == claimed 
+        assertEq(userCInfo.accRewards, userCInfo.claimedRewards);      
+        assertEq(userCInfo.accRewards/1e20, 6.48e23/1e20);           
+        assertEq(userCInfo.claimedRewards/1e20, 6.48e23/1e20);      
+
+        assertEq(userCInfo.accNftBoostRewards, 0);
+        assertEq(userCInfo.claimedNftRewards, 0);
+        assertEq(userCInfo.claimedCreatorRewards, 3e17);        // 3e17: creatorFee 
+
+        // check token balance
+        //assertEq(mocaToken.balanceOf(userC), 1.296e24);
+
+    }
 
     function testUserACanUnstake() public {}
 

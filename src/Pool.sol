@@ -118,16 +118,6 @@ contract Pool is ERC20, Pausable, Ownable2Step {
                                 EXTERNAL
     //////////////////////////////////////////////////////////////*/
 
-    function testWrapper(bytes32 vaultId, address onBehalfOf, uint256 amount) external {
-        // get vault + check if has been created
-       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
-        
-       (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
-
-
-
-    }
-
     ///@dev creates empty vault
     function createVault(address onBehalfOf, uint8 salt, DataTypes.VaultDuration duration, uint256 creatorFee, uint256 nftFee) external whenStarted whenNotPaused {
         //rp check
@@ -372,7 +362,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     }
 
     
-    ///@dev to prevent index drift
+    ///@dev to prevent index drift. Called by off-chain script
     function updateVault(bytes32 vaultId) external whenStarted whenNotPaused {
         DataTypes.Vault memory vault = vaults[vaultId];
         DataTypes.Vault memory vault_ = _updateVaultIndex(vault);
