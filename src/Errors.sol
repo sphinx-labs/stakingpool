@@ -9,6 +9,10 @@ pragma solidity ^0.8.0;
 
 library Errors {
 
+    error Test(uint256 counter);
+    
+    error InvalidVaultPeriod();
+
     error InvalidStakingPeriod();
 
     error InsufficientTimeLeft();

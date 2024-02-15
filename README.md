@@ -45,7 +45,14 @@ how to batch?
 
 
 remove all instances ofthe ladele
-
+- Uniswap Router and the Compound Bulker.
 
 restrict fns on stakingPoolL: onlyAdmin
 users must user router to publicly call 
+
+
+1. change vaultBaseAllocPoints to immutable
+2. refactor testing to be modular?
+
+
+realm points?

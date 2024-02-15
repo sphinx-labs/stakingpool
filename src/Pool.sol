@@ -23,15 +23,20 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     IERC20 public LOCKED_NFT_TOKEN;  
 
     IERC20 public REWARD_TOKEN;
-    // IERC777 - NFT
-    address public REALM_POINTS;
     address public REWARDS_VAULT;
-    
-    uint256 public constant PRECISION = 18;                       //token dp
+    address public REALM_POINTS;
+
+    // multipliers
+    uint256 public constant nftMultiplier = 1;
+    uint256 public constant duration60Multiplier = 1;
+    uint256 public constant duration90Multiplier = 1;
     uint256 public constant vaultBaseAllocPoints = 100 ether;     // need 18 dp precision for pool index calc
+
+    uint256 public constant PRECISION = 18;                       // token dp
     
+    // timing
     uint256 public immutable startTime;           // start time
-    uint256 public endTime;                       // allow extension staking period
+    uint256 public endTime;                       // non-immutable: allow extension staking period
 
     bool public isFrozen;
 
@@ -46,7 +51,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     event VaultIndexUpdated(bytes32 indexed vaultId, uint256 vaultIndex, uint256 vaultAccruedRewards);
     event UserIndexUpdated(address indexed user, bytes32 indexed vaultId, uint256 userIndex, uint256 userAccruedRewards);
 
-    event VaultCreated(address indexed creator, bytes32 indexed vaultId, uint40 indexed endTime, DataTypes.VaultDuration duration);
+    event VaultCreated(address indexed creator, bytes32 indexed vaultId, uint256 indexed endTime, DataTypes.VaultDuration duration);
     
     event StakedMoca(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
     event StakedMocaNft(address indexed onBehalfOf, bytes32 indexed vaultId, uint256 amount);
@@ -73,7 +78,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 //-------------------------------external------------------------------------------
 
 
-    constructor(IERC20 stakedToken, IERC20 rewardToken, address realmPoints, address rewardsVault, uint256 startTime_, uint256 duration, uint256 rewards, 
+    constructor(
+        IERC20 stakedToken, IERC20 rewardToken, address realmPoints, address rewardsVault, 
+        uint256 startTime_, uint256 duration, uint256 rewards,
         string memory name, string memory symbol, address owner) payable Ownable(owner) ERC20(name, symbol) {
     
         // sanity check: duration
@@ -82,7 +89,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
         STAKED_TOKEN = stakedToken;
         REWARD_TOKEN = rewardToken;
-        // NFT
+
         REALM_POINTS = realmPoints;
         REWARDS_VAULT = rewardsVault;
 
@@ -111,16 +118,24 @@ contract Pool is ERC20, Pausable, Ownable2Step {
                                 EXTERNAL
     //////////////////////////////////////////////////////////////*/
 
-    ///@dev creates empty vault
-    function createVault(address onBehalfOf, uint8 salt, DataTypes.VaultDuration duration, uint256 creatorFee, uint256 nftFee) external whenNotPaused {
-        require(block.timestamp >= startTime, "Not started");       //note: do we want?
+    function testWrapper(bytes32 vaultId, address onBehalfOf, uint256 amount) external {
+        // get vault + check if has been created
+       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
+        
+       (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
+
+
+    }
+
+    ///@dev creates empty vault
+    function createVault(address onBehalfOf, uint8 salt, DataTypes.VaultDuration duration, uint256 creatorFee, uint256 nftFee) external whenStarted whenNotPaused {
         //rp check
 
         // period check 
-        // Note:given that we maximally 120 days to now, should not overflow uint40
-        uint40 vaultEndTime = uint40(block.timestamp + (30 days * uint8(duration))); 
-        if (endTime <= vaultEndTime) revert Errors.InsufficientTimeLeft();
+        if(uint8(duration) == 0) revert Errors.InvalidVaultPeriod();        
+        uint256 vaultEndTime = block.timestamp + (30 days * uint8(duration));           //duration: 30,60,90
+        if (endTime < vaultEndTime) revert Errors.InsufficientTimeLeft();
 
         // vaultId generation
         bytes32 vaultId = _generateVaultId(salt);
@@ -145,9 +160,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             // index
             vault.accounting.vaultIndex = pool_.poolIndex;
             // fees: note: precision check
-            vault.accounting.totalFees = nftFee + creatorFee;
-            vault.accounting.totalNftFee = nftFee;
-            vault.accounting.creatorFee = creatorFee;
+            vault.accounting.totalFeeFactor = nftFee + creatorFee;
+            vault.accounting.totalNftFeeFactor = nftFee;
+            vault.accounting.creatorFeeFactor = creatorFee;
 
 
         //build userInfo - maybe no need
@@ -162,9 +177,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         emit VaultCreated(msg.sender, vaultId, vaultEndTime, duration); //emit totaLAllocPpoints updated?
     }  
 
-    function stakeTokens(bytes32 vaultId, address onBehalfOf, uint256 amount) external whenNotPaused {
+    function stakeTokens(bytes32 vaultId, address onBehalfOf, uint256 amount) external whenStarted whenNotPaused {
         // usual blah blah checks
-        require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(amount > 0, "Invalid amount");
         require(vaultId > 0, "Invalid vaultId");
 
@@ -177,9 +191,6 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // calc. allocPoints
         uint256 incomingAllocPoints = (amount * vault.multiplier);
         uint256 priorVaultAllocPoints = vault.allocPoints;
-
-        // increment allocPoints: user
-        userInfo.allocPoints += incomingAllocPoints;
 
         if (vault.stakedTokens == 0){    // check if first stake: eligible for bonusBall
             
@@ -213,9 +224,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         STAKED_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
     }
 
-    function stakeNfts(bytes32 vaultId, address onBehalfOf, uint256 amount) external whenNotPaused {
+    function stakeNfts(bytes32 vaultId, address onBehalfOf, uint256 amount) external whenStarted whenNotPaused {
         // usual blah blah checks
-        require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(amount > 0, "Invalid amount");
         require(vaultId > 0, "Invalid vaultId");
 
@@ -238,9 +248,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         LOCKED_NFT_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
     }
 
-    function claimRewards(bytes32 vaultId, address onBehalfOf) external whenNotPaused {
+    function claimRewards(bytes32 vaultId, address onBehalfOf) external whenStarted whenNotPaused {
         // usual blah blah checks
-        require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
@@ -264,9 +273,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         REWARD_TOKEN.safeTransferFrom(REWARDS_VAULT, onBehalfOf, totalUnclaimedRewards);
     }
 
-    function claimFees(bytes32 vaultId, address onBehalfOf) external whenNotPaused {
+    function claimFees(bytes32 vaultId, address onBehalfOf) external whenStarted whenNotPaused {
         // usual blah blah checks
-        require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
@@ -309,17 +317,16 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         REWARD_TOKEN.safeTransferFrom(REWARDS_VAULT, onBehalfOf, totalUnclaimedRewards);
     } 
 
-    function unstakeAll(bytes32 vaultId, address onBehalfOf) external whenNotPaused {
+    function unstakeAll(bytes32 vaultId, address onBehalfOf) external whenStarted whenNotPaused {
         // usual blah blah checks
-        require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
        (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
 
         // check if vault has matured
-        if(vault_.endTime < block.timestamp) revert Errors.VaultNotMatured(vaultId);
-        if(userInfo_.stakedNfts == 0 || userInfo_.stakedNfts == 0) revert Errors.UserHasNothingStaked(vaultId, onBehalfOf);
+        if(block.timestamp < vault_.endTime) revert Errors.VaultNotMatured(vaultId);
+        if(userInfo_.stakedTokens == 0 && userInfo_.stakedNfts == 0) revert Errors.UserHasNothingStaked(vaultId, onBehalfOf);
 
         // revert if 0 balances of tokens or nfts?
         // if(userInfo_.stakedNfts < 0 || userInfo_.stakedTokens) revert 
@@ -342,7 +349,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
         if(stakedTokens > 0){
             vault.stakedTokens -= stakedTokens;
-            userInfo.stakedNfts -= stakedTokens;
+            userInfo.stakedTokens -= stakedTokens;
             
             // burn stkMOCA
             _burn(onBehalfOf, stakedTokens);
@@ -358,16 +365,15 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         if(stakedTokens > 0) STAKED_TOKEN.safeTransfer(onBehalfOf, stakedTokens); 
     }
 
-    function unstakeNfts(bytes32 vaultId, address onBehalfOf) external whenNotPaused {
+    function unstakeNfts(bytes32 vaultId, address onBehalfOf) external whenStarted whenNotPaused {
         // usual blah blah checks
-        require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
        (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
 
         // check if vault has matured
-        if(vault_.endTime < block.timestamp) revert Errors.VaultNotMatured(vaultId);
+        if(block.timestamp < vault_.endTime) revert Errors.VaultNotMatured(vaultId);
         // revert if 0 balance
         if(userInfo_.stakedNfts == 0) revert Errors.UserHasNoNftStaked(vaultId, onBehalfOf);
 
@@ -387,16 +393,15 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         LOCKED_NFT_TOKEN.safeTransfer(onBehalfOf, stakedNfts);
     }
 
-    function unstakeTokens(bytes32 vaultId, address onBehalfOf) external whenNotPaused {
+    function unstakeTokens(bytes32 vaultId, address onBehalfOf) external whenStarted whenNotPaused {
         // usual blah blah checks
-        require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
        (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
 
         // check if vault has matured
-        if(vault_.endTime < block.timestamp) revert Errors.VaultNotMatured(vaultId);
+        if(block.timestamp < vault_.endTime) revert Errors.VaultNotMatured(vaultId);
         // revert if 0 balance
         if(userInfo_.stakedTokens == 0) revert Errors.UserHasNoTokenStaked(vaultId, onBehalfOf);
 
@@ -423,7 +428,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     }
     
     ///@dev to prevent index drift
-    function updateVault(bytes32 vaultId) external whenNotPaused {
+    function updateVault(bytes32 vaultId) external whenStarted whenNotPaused {
         DataTypes.Vault memory vault = vaults[vaultId];
         DataTypes.Vault memory vault_ = _updateVaultIndex(vault);
 
@@ -431,8 +436,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         vaults[vaultId] = vault_;
     }
 
-    function updateCreatorFee(bytes32 vaultId, uint256 fee )external whenNotPaused {}
-    function updateNftFee(bytes32 vaultId, uint256 fee )external whenNotPaused {}
+    function updateCreatorFee(bytes32 vaultId, uint256 fee )external whenStarted whenNotPaused {}
+    function updateNftFee(bytes32 vaultId, uint256 fee )external whenStarted whenNotPaused {}
 
 
 //-------------------------------internal-------------------------------------------
@@ -491,8 +496,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
     ///@dev balance == allocPoints
     ///@dev vaultIndex/userIndex == userIndex
-    function _calculateRewards(uint256 allocPoints, uint256 currentIndex, uint256 priorIndex) internal pure returns (uint256) {
-        return (allocPoints * (currentIndex - priorIndex)) / 10 ** PRECISION;
+    function _calculateRewards(uint256 balance, uint256 currentIndex, uint256 priorIndex) internal pure returns (uint256) {
+        return (balance * (currentIndex - priorIndex)) / 10 ** PRECISION;
     }
 
     ///@dev called prior to affecting any state change to a vault
@@ -516,13 +521,16 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             accruedRewards = _calculateRewards(vault.allocPoints, pool_.poolIndex, vault.accounting.vaultIndex);
 
             // calc. fees: nft fees accrued even if no nft staked. given out to 1st nft staker
-            uint256 accCreatorFee = (accruedRewards * vault.accounting.creatorFee) / 10 ** PRECISION;
-            uint256 accTotalNFTFee = (accruedRewards * vault.accounting.totalNftFee) / 10 ** PRECISION;  
+            uint256 accCreatorFee = (accruedRewards * vault.accounting.creatorFeeFactor) / 10 ** PRECISION;
+            uint256 accTotalNFTFee = (accruedRewards * vault.accounting.totalNftFeeFactor) / 10 ** PRECISION;  
 
             // book rewards: total, creator, NFT
             vault.accounting.totalAccRewards += accruedRewards;
             vault.accounting.accCreatorRewards += accCreatorFee;
             vault.accounting.accNftBoostRewards += accTotalNFTFee;
+
+            // reference for users' to calc. rewards
+            vault.accounting.rewardsAccPerToken += ((accruedRewards - accCreatorFee - accTotalNFTFee) * 10 ** PRECISION) / vault.stakedTokens;
 
             if(vault.stakedNfts > 0) {
                 // rewardsAccPerNFT
@@ -539,9 +547,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             vault.accounting.totalAccRewards += accruedRewards;
         }
 
-        //update vaultIndex
+        // update vaultIndex & rewardsAccPerToken
         vault.accounting.vaultIndex = pool_.poolIndex;
-        
+
         emit VaultIndexUpdated(vault.vaultId, pool_.poolIndex, vault.accounting.totalAccRewards);
 
         return vault;
@@ -552,26 +560,18 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     ///@dev applies fees onto the vaulIndex to return the userIndex
     function _updateUserIndexes(address user, DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault_) internal returns (DataTypes.UserInfo memory, DataTypes.Vault memory) {
 
-        // get lestest vaultIndex + vaultNftIndex
+        // get lastest vaultIndex + vaultNftIndex
         DataTypes.Vault memory vault = _updateVaultIndex(vault_);
-        uint256 newVaultIndex = vault.accounting.vaultIndex;
+        
+        uint256 newUserIndex = vault.accounting.rewardsAccPerToken;
         uint256 newUserNftIndex = vault.accounting.vaultNftIndex;
-
-        // apply fees | check math
-        uint256 newUserIndex = (newVaultIndex * (1 * 10 ** PRECISION - vault.accounting.totalFees)) / 10 ** PRECISION;
-
-        //calc. user's allocPoints || multiplier is not updated in vaultIndex, so can be stale.
-        uint256 userAllocPoints = userInfo.stakedTokens * vault.multiplier;
-        if(userInfo.allocPoints != userAllocPoints) {
-            userInfo.allocPoints = userAllocPoints;
-        }
-
+        
         uint256 accruedRewards;
         if(userInfo.userIndex != newUserIndex) {
             if(userInfo.stakedTokens > 0) {
                 
                 // rewards from staking MOCA
-                accruedRewards = _calculateRewards(userInfo.allocPoints, newUserIndex, userInfo.userIndex);
+                accruedRewards = _calculateRewards(userInfo.stakedTokens, newUserIndex, userInfo.userIndex);
                 userInfo.accRewards += accruedRewards;
 
                 emit RewardsAccrued(user, accruedRewards);
@@ -718,10 +718,22 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         emit DistributionUpdated(pool_.emissisonPerSecond, newEndTime);
     }
     
+
+
+    /*//////////////////////////////////////////////////////////////
+                               MODIFIERS
+    //////////////////////////////////////////////////////////////*/
+
+
+    modifier whenStarted() {
+
+        require(block.timestamp >= startTime, "Not started");    
+
+        _;
+    }
+
+
 }
-
-
-
 /**
 
 make getter fns:

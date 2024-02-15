@@ -51,15 +51,16 @@ contract DataTypes {
 
     struct VaultAccounting{
         // index
-        uint256 vaultIndex;    
-        uint256 vaultNftIndex;    //rewardsAccPerNFT
-        
+        uint256 vaultIndex;             //rewardsAccPerAllocPoint
+        uint256 vaultNftIndex;          //rewardsAccPerNFT
+        uint256 rewardsAccPerToken;
+
         // fees: pct values, with 18dp precision
-        uint256 totalFees;   
-        uint256 creatorFee;   
-        uint256 totalNftFee;       
+        uint256 totalFeeFactor;   
+        uint256 creatorFeeFactor;   
+        uint256 totalNftFeeFactor;       
             
-        // rewards
+        // rewards | based on allocPoints
         uint256 totalAccRewards;
         uint256 accNftBoostRewards;
         uint256 accCreatorRewards;    
@@ -74,12 +75,11 @@ contract DataTypes {
     //////////////////////////////////////////////////////////////*/
 
     struct UserInfo {
-        bytes32 vaultId;    //is not assigned. drop?
+        bytes32 vaultId;    //note: is not assigned. drop?
 
         // staked assets
         uint256 stakedNfts;            
         uint256 stakedTokens;
-        uint256 allocPoints; 
 
         // indexes
         uint256 userIndex; 
