@@ -1926,10 +1926,17 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
 
         // check token balance
         uint256 rewardsFeesAndBonusBall = vaultC.accounting.claimedRewards;
-        assertEq(mocaToken.balanceOf(userC)/1e18, rewardsFeesAndBonusBall/1e18);
-        // mocaBal:1166479955555555555555472
-        // claimedRewards: 1166399955555555555555472     
-        // 8e19           
+        assertEq(mocaToken.balanceOf(userC), vaultC.accounting.claimedRewards + userCPrinciple);
+        // mocaBal: 1166479955555555555555472 [1.166e24]
+        // claimedRewards: 1166399955555555555555472 [1.166e24]
+        // 8e19           _. staked amount
+
+        /**
+        events
+         claimFees: 129599933333333333333332 [1.295e23] -- creator
+         claimRewards:  1036798800000000000000000 [1.036e24]
+
+        */
     }
 
     function testUserACanUnstake() public {}
