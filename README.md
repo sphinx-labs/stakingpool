@@ -22,7 +22,6 @@ vault creation check: if vaultStart + duration exceed lastDay, reject creation
 - creator and NFT fees may vary.
 - how to track rewards to users and fees in a varying manner
 
-
 ## StakingPool Misc
 
 - vaults must be updated via script before `latestPoolTimestamp > vault.endTime`.
@@ -37,6 +36,8 @@ how to batch?
 
 ## AccessControls
 
+Well, what is the internal process w/ wallet mgmt?
+
 - owner or RBAC?
 - https://blog.openzeppelin.com/admin-accounts-and-multisigs
 - https://www.rareskills.io/post/openzeppelin-ownable2step
@@ -47,12 +48,12 @@ how to batch?
 remove all instances ofthe ladele
 - Uniswap Router and the Compound Bulker.
 
-restrict fns on stakingPoolL: onlyAdmin
-users must user router to publicly call 
-
+restrict fns on stakingPoolL: onlyRouter
+ - users must user router to publicly call
 
 1. change vaultBaseAllocPoints to immutable
 2. refactor testing to be modular?
 
 
 realm points?
+ - need ability to burn rp on creation?

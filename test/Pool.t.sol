@@ -1747,3 +1747,71 @@ contract StateT2_592_003Test is StateT2_592_003 {
         assertEq(currentMocaBalance/1e20, 3.888e23/1e20);            
     }
 }
+
+
+//Note: t= 7 + 30days,  | 2,592,007
+//      vault C ends
+//      check userC
+abstract contract StateTVaultCEnds is StateT2_592_003 {
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(7 + 30 days);  // 2592007
+
+        // update vaults
+        stakingPool.unstakeAll(vaultIdA, userA);
+        stakingPool.unstakeAll(vaultIdB, userB);
+
+        stakingPool.unstakeAll(vaultIdC, userC);
+    }   
+}
+
+contract StateTVaultCEndsTest is StateTVaultCEnds {
+
+    function testPoolVaultCEnds() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+
+        /**
+            Pool emits 1e18 rewards, per sec.
+             At t=2,592,002: poolIndex = ~ 1.622e22
+
+             From t=2,592,002 to t=2,592,007, vaultC is the sole beneficiary of pool rewards
+             rewardsAccrued = 1e18 * (2,592,007 - 2,592,002)
+                            = 5e18
+             
+             This tallies as vaultC was created at t7, while vaultA was created at t2, accounting for a 5 sec delta.
+             (VaultC ends 5s after vaultA ends). 
+             totalAllocPoints = totalStaked * multplier 
+                              = userCPrinciple * 1
+                              = 80e18 
+             
+             rewardsAccruedPerToken = totalRewardsEmitted / totalAllocPoints 
+                                    = 5e18 / 80e18
+                                    = 6.25e16
+            
+            Therefore, poolIndex at t=2,592,007 = priorPoolIndex + rewardsAccruedPerTokenSince 
+                                                = 1.622e22 + 6.25e16
+                                                = 1.62200625e22       (index represents rewardsPerToken since inception)
+
+            Calculating index:
+            - poolIndex = (eps * timeDelta * precision / totalAllocPoints) + oldIndex
+             - eps: 1e18 
+             - oldIndex:  1.622e22
+             - timeDelta: 5 seconds 
+             - totalAllocPoints: 80e18
+            
+            - poolIndex = (1e18 * 5 * 1e18 / 80e18 ) + 1.622e22 = 6.25e16 + 1.622e22 = ~ 1.622e22
+        */
+
+        assertEq(pool.totalAllocPoints, 0);                        // userC unstaked
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex/1e18, 1.62e22/1e18);             //rounding: to negate recurring decimals
+        assertEq(pool.poolLastUpdateTimeStamp, 2_592_007);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 2_592_007 ether);
+    }
+
+}

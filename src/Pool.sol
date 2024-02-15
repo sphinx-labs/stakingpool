@@ -337,7 +337,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         //get user balances
         uint256 stakedNfts = userInfo.stakedNfts;
         uint256 stakedTokens = userInfo.stakedTokens;
-        
+        uint256 allocPoints = stakedTokens * vault.multiplier;
+
         //update balances: user + vault
         if(stakedNfts > 0){
             vault.stakedNfts -= stakedNfts;
@@ -351,6 +352,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             vault.stakedTokens -= stakedTokens;
             userInfo.stakedTokens -= stakedTokens;
             
+            // update storage: pool
+            pool.totalAllocPoints -= allocPoints;
+
             // burn stkMOCA
             _burn(onBehalfOf, stakedTokens);
             emit UnstakedMoca(onBehalfOf, vaultId, stakedTokens);       
