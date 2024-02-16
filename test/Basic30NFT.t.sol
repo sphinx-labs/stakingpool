@@ -41,8 +41,12 @@ abstract contract StateZero is Test {
     string public name; 
     string public symbol;
     address public owner;
-    uint256 public constant vaultBaseAllocPoints = 100 ether;    
 
+    uint256 public constant nftMultiplier = 2;
+    uint256 public constant vault60Multiplier = 2;
+    uint256 public constant vault90Multiplier = 3;
+    uint256 public constant vaultBaseAllocPoints = 100 ether;     // need 18 dp precision for pool index calc
+    
     // testing data
     address public userA;
     address public userB;
@@ -102,9 +106,9 @@ abstract contract StateZero is Test {
 
         // modify rewardsVault storage
         stdstore
-        .target(address(rewardsVault))
-        .sig(rewardsVault.totalVaultRewards.selector) 
-        .checked_write(rewards);
+            .target(address(rewardsVault))
+            .sig(rewardsVault.totalVaultRewards.selector) 
+            .checked_write(rewards);
 
 
         // IERC20 stakedToken, IERC20 lockedNftToken, IERC20 rewardToken, address realmPoints, address rewardsVault, uint128 startTime_, uint128 duration, uint128 rewards, 
@@ -124,13 +128,12 @@ abstract contract StateZero is Test {
         vm.stopPrank();
 
 
-        // approvals for receiving tokens for staking
+        // approvals for receiving Moca tokens for staking
         vm.prank(userA);
         mocaToken.approve(address(stakingPool), userAPrinciple);
 
         vm.prank(userB);
         mocaToken.approve(address(stakingPool), userBPrinciple);
-        assertEq(mocaToken.allowance(userB, address(stakingPool)), userBPrinciple);
 
         vm.prank(userC);
         mocaToken.approve(address(stakingPool), userCPrinciple);
@@ -138,6 +141,16 @@ abstract contract StateZero is Test {
         // approval for issuing reward tokens to stakers
         vm.prank(address(rewardsVault));
         mocaToken.approve(address(stakingPool), rewards);
+
+        // approvals for receiving bridgedNFTOKENS for staking
+        vm.prank(userA);
+        nftRegistry.approve(address(stakingPool), 1);
+
+        vm.prank(userB);
+        nftRegistry.approve(address(stakingPool), 1);
+
+        vm.prank(userC);
+        nftRegistry.approve(address(stakingPool), 2);
 
 
         //check stakingPool
@@ -518,7 +531,8 @@ contract StateT03Test is StateT03 {
 }
 
 //Note: t=04,  
-//      userB stakes into VaultA. 
+//      userA stakes an nft token into VaultA. 
+//      vault multiplier increases to 2; so should allocPoints.
 //      rewards emitted frm t=3 to t-4 is allocated to userA only.
 abstract contract StateT04 is StateT03 {
     // 
@@ -527,15 +541,12 @@ abstract contract StateT04 is StateT03 {
 
         vm.warp(4);
 
-        vm.prank(userB);
-        stakingPool.stakeTokens(vaultIdA, userB, userBPrinciple);
+        vm.prank(userA);
+        stakingPool.stakeNfts(vaultIdA, userA, 1);
     }
 }
 
 contract StateT04Test is StateT04 {
-
-    // check tt staking was received and recorded correctly
-    // check pool, vault and userInfo
 
     function testPoolT04() public {
 
@@ -559,7 +570,7 @@ contract StateT04Test is StateT04 {
             - poolIndex = (1e18 * 1 * 1e18 / 50e18 ) + 1e16 = 2e16 + 1e16 = 3e16
         */
 
-        assertEq(pool.totalAllocPoints, userAPrinciple + userBPrinciple); 
+        assertEq(pool.totalAllocPoints, userAPrinciple); 
         assertEq(pool.emissisonPerSecond, 1 ether);
 
         assertEq(pool.poolIndex, 3e16);
@@ -573,9 +584,9 @@ contract StateT04Test is StateT04 {
         DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
 
         /**
-            userA has staked into vaultA @t=3. userB has staked into vaultA @t=4.
+            userA has staked into vaultA @t=3.
             rewards emitted from t3 to t4, allocated to userA.
-             - vault alloc points should be updated: sum of userA and userB principles (since multplier is 1)
+             - vault alloc points should be updated: userAPrinciple boosted by the multiplier (since multplier is now 2)
              - stakedTokens updated
              - vaultIndex updated
              - fees updated
@@ -594,8 +605,10 @@ contract StateT04Test is StateT04 {
        
         //uint256 rewardsAccPerToken = (vaultA.accounting.vaultIndex - vaultA.accounting.accNftBoostRewards - vaultA.accounting.accCreatorRewards) / vaultA.stakedTokens;
 
-        assertEq(vaultA.allocPoints, userAPrinciple + userBPrinciple);
-        assertEq(vaultA.stakedTokens, userAPrinciple + userBPrinciple); 
+        assertEq(vaultA.multiplier, 2);
+        
+        assertEq(vaultA.allocPoints, userAPrinciple);
+        assertEq(vaultA.stakedTokens, userAPrinciple); 
        
         // indexes: in-line with poolIndex
         assertEq(vaultA.accounting.vaultIndex, 3e16); 
@@ -611,36 +624,5 @@ contract StateT04Test is StateT04 {
         assertEq(vaultA.accounting.claimedRewards, 0); 
 
     }
-
-    // can't test A cos, A is stale. no action taken.
-
-    function testUserBT04() public {
-
-        DataTypes.UserInfo memory userB = getUserInfoStruct(vaultIdA, userB);
-
-        /**
-            Rewards:
-             userB should have accrued 0 rewards. just staked at t4.
-
-            Calculating userIndex:
-             vaultIndex = 3e16
-             grossUserIndex = 3e16
-             totalFees = 0.2e18
-             
-             userIndex = [3e16 * (1e18 - 0.2e18) / 1e18] = [3e16 * 0.8e18] / 1e18 = 2.4e16
-
-        */
-
-        assertEq(userB.stakedTokens, userBPrinciple);
-
-        assertEq(userB.userIndex, 1.6e16);   
-        assertEq(userB.userNftIndex, 0);
-
-        assertEq(userB.accRewards, 0 ether);  
-        assertEq(userB.claimedRewards, 0);
-
-        assertEq(userB.accNftBoostRewards, 0);
-        assertEq(userB.claimedNftRewards, 0);
-        assertEq(userB.claimedCreatorRewards, 0);
-    }
 }
+

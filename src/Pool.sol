@@ -28,8 +28,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
     // multipliers
     uint256 public constant nftMultiplier = 2;
-    uint256 public constant duration60Multiplier = 2;
-    uint256 public constant duration90Multiplier = 3;
+    uint256 public constant vault60Multiplier = 2;
+    uint256 public constant vault90Multiplier = 3;
     uint256 public constant vaultBaseAllocPoints = 100 ether;     // need 18 dp precision for pool index calc
 
     uint256 public constant PRECISION = 18;                       // token dp
