@@ -85,7 +85,7 @@ contract DataTypes {
         uint256 userIndex; 
         uint256 userNftIndex;
 
-        //rewards: tokens (only from tokens)
+        //rewards: tokens (only from tokens) note: change name to accStakingRewards?
         uint256 accRewards;
         uint256 claimedRewards;
 

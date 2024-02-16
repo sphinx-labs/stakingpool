@@ -31,7 +31,7 @@
 - t2: vaultA created, by userA
 - t3: userA stakes in full (beneficiary of BonusBall)
 - t4: userA stakes nft
-
+- t5: userB stakes tokens in full
 stake before
 stake during
 stake after : should fail

@@ -197,7 +197,7 @@ abstract contract StateZero is Test {
             ,uint256 stakedNfts, uint256 stakedTokens, 
             uint256 userIndex, uint256 userNftIndex,
             uint256 accRewards, uint256 claimedRewards,
-            uint256 accNftBoostRewards, uint256 claimedNftRewards,
+            uint256 accNftStakingRewards, uint256 claimedNftRewards,
             uint256 claimedCreatorRewards
 
         ) = stakingPool.users(user, vaultId);
@@ -216,7 +216,7 @@ abstract contract StateZero is Test {
             userInfo.accRewards = accRewards;
             userInfo.claimedRewards = claimedRewards;
 
-            userInfo.accNftBoostRewards = accNftBoostRewards;
+            userInfo.accNftStakingRewards = accNftStakingRewards;
             userInfo.claimedNftRewards = claimedNftRewards;
 
             userInfo.claimedCreatorRewards = claimedCreatorRewards;
@@ -368,7 +368,7 @@ contract StateT02Test is StateT02 {
         assertEq(nftFeeA, vaultA.accounting.totalNftFeeFactor);
 
         assertEq(0, vaultA.accounting.totalAccRewards);
-        assertEq(0, vaultA.accounting.accNftBoostRewards);
+        assertEq(0, vaultA.accounting.accNftStakingRewards);
         assertEq(0, vaultA.accounting.accCreatorRewards);
         assertEq(0, vaultA.accounting.bonusBall);
 
@@ -480,7 +480,7 @@ contract StateT03Test is StateT03 {
 
         // rewards (from t=2 to t=3)
         assertEq(vaultA.accounting.totalAccRewards, 1e18);               // bonusBall rewards
-        assertEq(vaultA.accounting.accNftBoostRewards, 0);               // no tokens staked prior to t=3. no rewwards accrued
+        assertEq(vaultA.accounting.accNftStakingRewards, 0);               // no tokens staked prior to t=3. no rewwards accrued
         assertEq(vaultA.accounting.accCreatorRewards, 0);                // no tokens staked prior to t=3. therefore no creator rewards       
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
@@ -510,7 +510,7 @@ contract StateT03Test is StateT03 {
         assertEq(userA.accRewards, 1 ether);  // 1e18: bonusBall received
         assertEq(userA.claimedRewards, 0);
 
-        assertEq(userA.accNftBoostRewards, 0);
+        assertEq(userA.accNftStakingRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
         assertEq(userA.claimedCreatorRewards, 0);
     }
@@ -591,7 +591,7 @@ contract StateT04Test is StateT04 {
 
         */
        
-        //uint256 rewardsAccPerToken = (vaultA.accounting.vaultIndex - vaultA.accounting.accNftBoostRewards - vaultA.accounting.accCreatorRewards) / vaultA.stakedTokens;
+        //uint256 rewardsAccPerToken = (vaultA.accounting.vaultIndex - vaultA.accounting.accNftStakingRewards - vaultA.accounting.accCreatorRewards) / vaultA.stakedTokens;
 
         assertEq(vaultA.allocPoints, userAPrinciple + userBPrinciple);
         assertEq(vaultA.stakedTokens, userAPrinciple + userBPrinciple); 
@@ -603,7 +603,7 @@ contract StateT04Test is StateT04 {
 
         // rewards (from t=3 to t=4)
         assertEq(vaultA.accounting.totalAccRewards, 2e18);               
-        assertEq(vaultA.accounting.accNftBoostRewards, 1e17);               // tokens staked. rewards accrued for 1st staker.
+        assertEq(vaultA.accounting.accNftStakingRewards, 1e17);               // tokens staked. rewards accrued for 1st staker.
         assertEq(vaultA.accounting.accCreatorRewards, 1e17);                // no tokens staked prior to t=3. therefore no creator rewards       
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
@@ -638,7 +638,7 @@ contract StateT04Test is StateT04 {
         assertEq(userB.accRewards, 0 ether);  
         assertEq(userB.claimedRewards, 0);
 
-        assertEq(userB.accNftBoostRewards, 0);
+        assertEq(userB.accNftStakingRewards, 0);
         assertEq(userB.claimedNftRewards, 0);
         assertEq(userB.claimedCreatorRewards, 0);
     }
@@ -710,10 +710,10 @@ contract StateT05Test is StateT05 {
             rewards & fees:
              incomingRewards = 1e18
              accCreatorFee = 1e18 * 0.1e18 / precision = 1e17
-             accNftBoostRewards = 1e18 * 0.1e18 / precision = 1e17
+             accNftStakingRewards = 1e18 * 0.1e18 / precision = 1e17
              
              accCreatorFee = 1e17 + 1e17 = 2e17
-             accNftBoostRewards = 1e17 + 1e17 = 2e17
+             accNftStakingRewards = 1e17 + 1e17 = 2e17
              totalAccRewards = totalAccRewards + incomingRewards = 2e18 + 1e18 = 3e18
              
              rewardsAccPerToken += incomingRewards - fees / 80e18 
@@ -732,7 +732,7 @@ contract StateT05Test is StateT05 {
 
         // rewards (from t=3 to t=4)
         assertEq(vaultA.accounting.totalAccRewards, 3e18);               
-        assertEq(vaultA.accounting.accNftBoostRewards, 2e17);               // tokens staked. rewards accrued for 1st staker.
+        assertEq(vaultA.accounting.accNftStakingRewards, 2e17);               // tokens staked. rewards accrued for 1st staker.
         assertEq(vaultA.accounting.accCreatorRewards, 2e17);                // no tokens staked prior to t=3. therefore no creator rewards       
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
@@ -767,7 +767,7 @@ contract StateT05Test is StateT05 {
         assertEq(userA.accRewards, 2.3e18);  // 1e18: bonusBall received
         assertEq(userA.claimedRewards, 2.3e18);
 
-        assertEq(userA.accNftBoostRewards, 0);
+        assertEq(userA.accNftStakingRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
         assertEq(userA.claimedCreatorRewards, 0);
     }
@@ -795,7 +795,7 @@ contract StateT05Test is StateT05 {
         assertEq(userB.accRewards, 3e17); 
         assertEq(userB.claimedRewards, 3e17);
 
-        assertEq(userB.accNftBoostRewards, 0);
+        assertEq(userB.accNftStakingRewards, 0);
         assertEq(userB.claimedNftRewards, 0);
         assertEq(userB.claimedCreatorRewards, 0);
 
@@ -869,11 +869,11 @@ contract StateT06Test is StateT06 {
              [perUnitTime]
              incomingRewards = 1e18
              accCreatorFee = 1e18 * 0.1e18 / precision = 1e17
-             accNftBoostRewards = 1e18 * 0.1e18 / precision = 1e17
+             accNftStakingRewards = 1e18 * 0.1e18 / precision = 1e17
              
              [total]
              accCreatorFee = 2e17 + 1e17 = 3e17
-             accNftBoostRewards = 2e17 + 1e17 = 3e17
+             accNftStakingRewards = 2e17 + 1e17 = 3e17
              totalAccRewards = totalAccRewards + incomingRewards = 3e18 + 1e18 = 4e18
              
               rewardsAccPerToken += incomingRewards - fees / 80e18 
@@ -892,7 +892,7 @@ contract StateT06Test is StateT06 {
 
         // rewards (from t=3 to t=4)
         assertEq(vaultA.accounting.totalAccRewards, 4 ether);               
-        assertEq(vaultA.accounting.accNftBoostRewards, 3e17);               // tokens staked. rewards accrued for 1st staker.
+        assertEq(vaultA.accounting.accNftStakingRewards, 3e17);               // tokens staked. rewards accrued for 1st staker.
         assertEq(vaultA.accounting.accCreatorRewards, 3e17);                // no tokens staked prior to t=3. therefore no creator rewards       
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
@@ -932,7 +932,7 @@ contract StateT06Test is StateT06 {
         assertEq(userA.accRewards, 2.5e18 + 3e17);          // 1e18: bonusBall received,  3e17: creatorFee
         assertEq(userA.claimedRewards, 2.3e18);      
 
-        assertEq(userA.accNftBoostRewards, 0);
+        assertEq(userA.accNftStakingRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
         assertEq(userA.claimedCreatorRewards, 3e17);        // 3e17: creatorFee
     }
@@ -1019,7 +1019,7 @@ contract StateT07Test is StateT07 {
         assertEq(vaultC.accounting.totalNftFeeFactor, nftFeeC);
 
         assertEq(vaultC.accounting.totalAccRewards, 0);
-        assertEq(vaultC.accounting.accNftBoostRewards, 0);
+        assertEq(vaultC.accounting.accNftStakingRewards, 0);
         assertEq(vaultC.accounting.accCreatorRewards, 0);
         assertEq(vaultC.accounting.bonusBall, 0);
 
@@ -1101,11 +1101,11 @@ contract StateT08Test is StateT08 {
              [perUnitTime]
              incomingRewards = 1e18 / 180e18 * 100e18 = 5.55555e17
              accCreatorFee = 0
-             accNftBoostRewards = 0
+             accNftStakingRewards = 0
              
              [total]
              accCreatorFee = 0
-             accNftBoostRewards = 0
+             accNftStakingRewards = 0
              totalAccRewards = 5.55555e17
              bonusBall = 5.55555e17
         */
@@ -1120,7 +1120,7 @@ contract StateT08Test is StateT08 {
 
         // rewards (from t=3 to t=4)
         assertEq(vaultC.accounting.totalAccRewards/1e14, 5.555e17/1e14);             //rounding: to negate recurring decimals    
-        assertEq(vaultC.accounting.accNftBoostRewards, 0);              
+        assertEq(vaultC.accounting.accNftStakingRewards, 0);              
         assertEq(vaultC.accounting.accCreatorRewards, 0);                
         assertEq(vaultC.accounting.bonusBall/1e14, 5.555e17/1e14);                   //rounding: to negate recurring decimals
 
@@ -1149,7 +1149,7 @@ contract StateT08Test is StateT08 {
         assertEq(userC.accRewards/1e14, 5.555e17/1e14);          // bonusBall received
         assertEq(userC.claimedRewards, 0);      
 
-        assertEq(userC.accNftBoostRewards, 0);
+        assertEq(userC.accNftStakingRewards, 0);
         assertEq(userC.claimedNftRewards, 0);
         assertEq(userC.claimedCreatorRewards, 0);        
 
@@ -1236,11 +1236,11 @@ contract StateT09Test is StateT09 {
              [perUnitTime]
              incomingRewards = 1e18 / 120e18 * 40e18 = 3.33333e17
              accCreatorFee = 3.33333e17 * 0.1e18 / precision = 3.33333e16
-             accNftBoostRewards = 3.33333e17 * 0.1e18 / precision = 3.33333e16
+             accNftStakingRewards = 3.33333e17 * 0.1e18 / precision = 3.33333e16
              
              [total]
              accCreatorFee = 3.33333e16
-             accNftBoostRewards = 3.33333e16
+             accNftStakingRewards = 3.33333e16
              totalAccRewards = 5.55555e17 + 3.33333e17 = 8.8888e17
              bonusBall = 5.55555e17
 
@@ -1259,7 +1259,7 @@ contract StateT09Test is StateT09 {
 
         // rewards 
         assertEq(vaultC.accounting.totalAccRewards/1e14, 8.888e17/1e14);             //rounding: to negate recurring decimals    
-        assertEq(vaultC.accounting.accNftBoostRewards/1e12, 3.3333e16/1e12);              
+        assertEq(vaultC.accounting.accNftStakingRewards/1e12, 3.3333e16/1e12);              
         assertEq(vaultC.accounting.accCreatorRewards/1e12, 3.3333e16/1e12);                
         assertEq(vaultC.accounting.bonusBall/1e14, 5.555e17/1e14);                   //rounding: to negate recurring decimals
 
@@ -1299,7 +1299,7 @@ contract StateT09Test is StateT09 {
         assertEq(userC.accRewards/1e14, 8.222e17/1e14);          // bonusBall received
         assertEq(userC.claimedRewards, 0);      
 
-        assertEq(userC.accNftBoostRewards, 0);
+        assertEq(userC.accNftStakingRewards, 0);
         assertEq(userC.claimedNftRewards, 0);
         assertEq(userC.claimedCreatorRewards, 0);        
 
@@ -1384,11 +1384,11 @@ contract StateT10Test is StateT10 {
              [perUnitTime]
              incomingRewards = 1e18 / 160e18 * 80e18 = 5e17
              accCreatorFee = 5e17 * 0.1e18 / precision =  5e16
-             accNftBoostRewards = 5e17 * 0.1e18 / precision = 5e16
+             accNftStakingRewards = 5e17 * 0.1e18 / precision = 5e16
              
              [total]
              accCreatorFee = 3.33333e16 + 5e16 = 8.333e16
-             accNftBoostRewards = 3.33333e16 + 5e16 = 8.333e16
+             accNftStakingRewards = 3.33333e16 + 5e16 = 8.333e16
              totalAccRewards = 5.55555e17 + 3.33333e17 + 5e17 = 1.3888e18
              bonusBall = 5.55555e17
 
@@ -1412,7 +1412,7 @@ contract StateT10Test is StateT10 {
 
         // rewards 
         assertEq(vaultC.accounting.totalAccRewards/1e15, 1.388e18/1e15);             //rounding: to negate recurring decimals    
-        assertEq(vaultC.accounting.accNftBoostRewards/1e13, 8.333e16/1e13);              
+        assertEq(vaultC.accounting.accNftStakingRewards/1e13, 8.333e16/1e13);              
         assertEq(vaultC.accounting.accCreatorRewards/1e13, 8.333e16/1e13);                
         assertEq(vaultC.accounting.bonusBall/1e14, 5.555e17/1e14);                   //rounding: to negate recurring decimals
 
@@ -1452,7 +1452,7 @@ contract StateT10Test is StateT10 {
         assertEq(userC.accRewards/1e15, 1.222e18/1e15);          // bonusBall received
         assertEq(userC.claimedRewards/1e15, 1.222e18/1e15);      
 
-        assertEq(userC.accNftBoostRewards, 0);
+        assertEq(userC.accNftStakingRewards, 0);
         assertEq(userC.claimedNftRewards, 0);
         assertEq(userC.claimedCreatorRewards, 0);        
 
@@ -1582,7 +1582,7 @@ contract StateVaultAEndsTest is StateVaultAEnds {
 
         // rewards (from t=3 to t=4)
         assertEq(vaultA.accounting.totalAccRewards/1e21, 1.296e24/1e21);               
-        assertEq(vaultA.accounting.accNftBoostRewards/1e20, 1.296e23/1e20);               // tokens staked. rewards accrued for 1st staker.
+        assertEq(vaultA.accounting.accNftStakingRewards/1e20, 1.296e23/1e20);               // tokens staked. rewards accrued for 1st staker.
         assertEq(vaultA.accounting.accCreatorRewards/1e20, 1.296e23/1e20);                // no tokens staked prior to t=3. therefore no creator rewards       
         assertEq(vaultA.accounting.bonusBall, 1e18); 
         
@@ -1627,7 +1627,7 @@ contract StateVaultAEndsTest is StateVaultAEnds {
         assertEq(userA.accRewards/1e20, 6.48e23/1e20);           
         assertEq(userA.claimedRewards/1e20, 6.48e23/1e20);      
 
-        assertEq(userA.accNftBoostRewards, 0);
+        assertEq(userA.accNftStakingRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
         assertEq(userA.claimedCreatorRewards, 3e17);        // 3e17: creatorFee
     }
@@ -1736,7 +1736,7 @@ contract StateT2_592_003Test is StateT2_592_003 {
         assertEq(userBInfo.accRewards/1e20, 3.888e23/1e20);           
         assertEq(userBInfo.claimedRewards/1e20, 3.888e23/1e20);      
 
-        assertEq(userBInfo.accNftBoostRewards, 0);
+        assertEq(userBInfo.accNftStakingRewards, 0);
         assertEq(userBInfo.claimedNftRewards, 0);
         assertEq(userBInfo.claimedCreatorRewards, 0);        // 3e17: creatorFee  
     }
@@ -1911,7 +1911,7 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
 
         // rewards (from t=3 to t=4)
         assertEq(vaultC.accounting.totalAccRewards/1e21, 1.295e24/1e21);               
-        assertEq(vaultC.accounting.accNftBoostRewards/1e20, 1.295e23/1e20);               // tokens staked. rewards accrued for 1st staker.
+        assertEq(vaultC.accounting.accNftStakingRewards/1e20, 1.295e23/1e20);               // tokens staked. rewards accrued for 1st staker.
         assertEq(vaultC.accounting.accCreatorRewards/1e20, 1.295e23/1e20);                // no tokens staked prior to t=3. therefore no creator rewards       
         assertEq(vaultC.accounting.bonusBall/1e14, 5.555e17/1e14); 
         
@@ -1960,7 +1960,7 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         assertEq(userCInfo.accRewards/1e21, 1.036e24/1e21);           
         assertEq(userCInfo.claimedRewards/1e21, 1.036e24/1e21);      
 
-        assertEq(userCInfo.accNftBoostRewards, 0);
+        assertEq(userCInfo.accNftStakingRewards, 0);
         assertEq(userCInfo.claimedNftRewards, 0);
         assertEq(userCInfo.claimedCreatorRewards/1e20, 1.295e23/1e20);       
 

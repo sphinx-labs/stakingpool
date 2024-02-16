@@ -48,7 +48,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     event DistributionUpdated(uint256 indexed newPoolEPS, uint256 indexed newEndTime);
 
     event PoolIndexUpdated(uint256 indexed lastUpdateTimestamp, uint256 indexed oldIndex, uint256 indexed newIndex);
-    event VaultIndexUpdated(bytes32 indexed vaultId, uint256 vaultIndex, uint256 vaultAccruedRewards);
+    event VaultIndexUpdated(bytes32 indexed vaultId, uint256 indexed vaultIndex, uint256 indexed vaultAccruedRewards);
+    event VaultMultiplierUpdated(bytes32 indexed vaultId, uint256 indexed oldMultiplier, uint256 indexed newMultiplier);
+
     event UserIndexUpdated(address indexed user, bytes32 indexed vaultId, uint256 userIndex, uint256 userAccruedRewards);
 
     event VaultCreated(address indexed creator, bytes32 indexed vaultId, uint256 indexed endTime, DataTypes.VaultDuration duration);
@@ -226,15 +228,28 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // update indexes and book all prior rewards
         (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
+        // update user
+        userInfo.stakedNfts += amount;
+        // book 1st stake incentive
+        if(vault.stakedNfts == 0) {
+            userInfo.accNftStakingRewards = vault.accounting.accNftStakingRewards;
+            emit NftFeesAccrued(onBehalfOf, userInfo.accNftStakingRewards);
+        }
+
+        // cache old data; multiplier 
+        uint256 oldMultiplier = vault.multiplier;
+        
         // update vault
         vault.stakedNfts += amount;
         vault.multiplier += amount * nftMultiplier;
         vault.allocPoints += vault.stakedTokens * nftMultiplier;
 
-        // book 1st stake incentive
-        if(vault.stakedNfts == 0) userInfo.accNftStakingRewards = vault.accounting.accNftStakingRewards;
-       
+        // update storage
+        vaults[vaultId] = vault;
+        users[onBehalfOf][vaultId] = userInfo;
+
         emit StakedMocaNft(onBehalfOf, vaultId, amount);
+        emit VaultMultiplierUpdated(vaultId, oldMultiplier, vault.multiplier);
 
         // grab MOCA
         LOCKED_NFT_TOKEN.safeTransferFrom(onBehalfOf, address(this), amount);
@@ -289,7 +304,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         
         // collect NFT fees
         if(userInfo.stakedNfts > 0){
-            uint256 unclaimedNftRewards = (userInfo.accNftBoostRewards - userInfo.claimedNftRewards);
+            uint256 unclaimedNftRewards = (userInfo.accNftStakingRewards - userInfo.claimedNftRewards);
             totalUnclaimedRewards += unclaimedNftRewards;
             
             // update user balances
@@ -464,7 +479,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             // book rewards: total, creator, NFT
             vault.accounting.totalAccRewards += accruedRewards;
             vault.accounting.accCreatorRewards += accCreatorFee;
-            vault.accounting.accNftBoostRewards += accTotalNFTFee;
+            vault.accounting.accNftStakingRewards += accTotalNFTFee;
 
             // reference for users' to calc. rewards
             vault.accounting.rewardsAccPerToken += ((accruedRewards - accCreatorFee - accTotalNFTFee) * 10 ** PRECISION) / vault.stakedTokens;
@@ -484,10 +499,10 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             vault.accounting.totalAccRewards += accruedRewards;
         }
 
-        // update vaultIndex & rewardsAccPerToken
+        // update vaultIndex
         vault.accounting.vaultIndex = pool_.poolIndex;
 
-        emit VaultIndexUpdated(vault.vaultId, pool_.poolIndex, vault.accounting.totalAccRewards);
+        emit VaultIndexUpdated(vault.vaultId, vault.accounting.vaultIndex, vault.accounting.totalAccRewards);
 
         return vault;
 
@@ -519,9 +534,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             if(userInfo.userNftIndex != newUserNftIndex){
 
                 // total accrued rewards from staking NFTs
-                uint256 accNftBoostRewards = (newUserNftIndex - userInfo.userNftIndex) * userInfo.stakedNfts;
-                userInfo.accNftBoostRewards += accNftBoostRewards;
-                emit NftFeesAccrued(user, accNftBoostRewards);
+                uint256 accNftStakingRewards = (newUserNftIndex - userInfo.userNftIndex) * userInfo.stakedNfts;
+                userInfo.accNftStakingRewards += accNftStakingRewards;
+                emit NftFeesAccrued(user, accNftStakingRewards);
             }
         }
 

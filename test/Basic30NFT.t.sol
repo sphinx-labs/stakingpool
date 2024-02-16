@@ -46,7 +46,7 @@ abstract contract StateZero is Test {
     uint256 public constant vault60Multiplier = 2;
     uint256 public constant vault90Multiplier = 3;
     uint256 public constant vaultBaseAllocPoints = 100 ether;     // need 18 dp precision for pool index calc
-    
+
     // testing data
     address public userA;
     address public userB;
@@ -55,6 +55,10 @@ abstract contract StateZero is Test {
     uint256 public userAPrinciple;
     uint256 public userBPrinciple;
     uint256 public userCPrinciple;
+
+    uint256 public constant userANfts = 1;
+    uint256 public constant userBNfts = 1;
+    uint256 public constant userCNfts = 2;
 
 //-------------------------------events-------------------------------------------
     event DistributionUpdated(uint256 indexed newPoolEPS, uint256 indexed newEndTime);
@@ -121,9 +125,9 @@ abstract contract StateZero is Test {
         mocaToken.mint(userC, userCPrinciple);
 
         // mint bridged NFT tokens to users
-        nftRegistry.mint(userA, 1);
-        nftRegistry.mint(userB, 1);
-        nftRegistry.mint(userC, 2);
+        nftRegistry.mint(userA, userANfts);
+        nftRegistry.mint(userB, userBNfts);
+        nftRegistry.mint(userC, userCNfts);
 
         vm.stopPrank();
 
@@ -210,7 +214,7 @@ abstract contract StateZero is Test {
             ,uint256 stakedNfts, uint256 stakedTokens, 
             uint256 userIndex, uint256 userNftIndex,
             uint256 accRewards, uint256 claimedRewards,
-            uint256 accNftBoostRewards, uint256 claimedNftRewards,
+            uint256 accNftStakingRewards, uint256 claimedNftRewards,
             uint256 claimedCreatorRewards
 
         ) = stakingPool.users(user, vaultId);
@@ -229,7 +233,7 @@ abstract contract StateZero is Test {
             userInfo.accRewards = accRewards;
             userInfo.claimedRewards = claimedRewards;
 
-            userInfo.accNftBoostRewards = accNftBoostRewards;
+            userInfo.accNftStakingRewards = accNftStakingRewards;
             userInfo.claimedNftRewards = claimedNftRewards;
 
             userInfo.claimedCreatorRewards = claimedCreatorRewards;
@@ -381,7 +385,7 @@ contract StateT02Test is StateT02 {
         assertEq(nftFeeA, vaultA.accounting.totalNftFeeFactor);
 
         assertEq(0, vaultA.accounting.totalAccRewards);
-        assertEq(0, vaultA.accounting.accNftBoostRewards);
+        assertEq(0, vaultA.accounting.accNftStakingRewards);
         assertEq(0, vaultA.accounting.accCreatorRewards);
         assertEq(0, vaultA.accounting.bonusBall);
 
@@ -494,7 +498,7 @@ contract StateT03Test is StateT03 {
 
         // rewards (from t=2 to t=3)
         assertEq(vaultA.accounting.totalAccRewards, 1e18);               // bonusBall rewards
-        assertEq(vaultA.accounting.accNftBoostRewards, 0);               // no tokens staked prior to t=3. no rewwards accrued
+        assertEq(vaultA.accounting.accNftStakingRewards, 0);               // no tokens staked prior to t=3. no rewwards accrued
         assertEq(vaultA.accounting.accCreatorRewards, 0);                // no tokens staked prior to t=3. therefore no creator rewards       
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
@@ -524,7 +528,7 @@ contract StateT03Test is StateT03 {
         assertEq(userA.accRewards, 1 ether);  // 1e18: bonusBall received
         assertEq(userA.claimedRewards, 0);
 
-        assertEq(userA.accNftBoostRewards, 0);
+        assertEq(userA.accNftStakingRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
         assertEq(userA.claimedCreatorRewards, 0);
     }
@@ -542,7 +546,7 @@ abstract contract StateT04 is StateT03 {
         vm.warp(4);
 
         vm.prank(userA);
-        stakingPool.stakeNfts(vaultIdA, userA, 1);
+        stakingPool.stakeNfts(vaultIdA, userA, userANfts);
     }
 }
 
@@ -586,43 +590,81 @@ contract StateT04Test is StateT04 {
         /**
             userA has staked into vaultA @t=3.
             rewards emitted from t3 to t4, allocated to userA.
-             - vault alloc points should be updated: userAPrinciple boosted by the multiplier (since multplier is now 2)
-             - stakedTokens updated
-             - vaultIndex updated
-             - fees updated
-             - rewards updated
-            
+             
             rewards & fees:
              incomingRewards = 1e18
              accCreatorFee = 1e18 * 0.1e18 / precision = 1e17
              accCreatorFee = 1e18 * 0.1e18 / precision = 1e17
 
              totalAccRewards += incomingRewards = 1e18 + incomingRewards = 1e18 + 1e18 = 2e18
-             
+            
              rewardsAccPerToken += incomingRewards - fees / stakedTokens = (1e18 - 2e17)*1e18 / 50e18 = 1.6e16
 
         */
        
-        //uint256 rewardsAccPerToken = (vaultA.accounting.vaultIndex - vaultA.accounting.accNftBoostRewards - vaultA.accounting.accCreatorRewards) / vaultA.stakedTokens;
+        //uint256 rewardsAccPerToken = (vaultA.accounting.vaultIndex - vaultA.accounting.accNftStakingRewards - vaultA.accounting.accCreatorRewards) / vaultA.stakedTokens;
 
-        assertEq(vaultA.multiplier, 2);
-        
-        assertEq(vaultA.allocPoints, userAPrinciple);
+        // nft section 
+        assertEq(vaultA.stakedNfts, 1); 
+        assertEq(vaultA.multiplier, 3);
+        assertEq(vaultA.accounting.vaultNftIndex, 0);       //no nft staked before: so index 0
+
+        // tokens
         assertEq(vaultA.stakedTokens, userAPrinciple); 
-       
-        // indexes: in-line with poolIndex
+        assertEq(vaultA.allocPoints, userAPrinciple * vaultA.multiplier);
+
+        // token index
         assertEq(vaultA.accounting.vaultIndex, 3e16); 
-        assertEq(vaultA.accounting.vaultNftIndex, 0); 
         assertEq(vaultA.accounting.rewardsAccPerToken, 1.6e16); 
 
-        // rewards (from t=3 to t=4)
+        // rewards 
         assertEq(vaultA.accounting.totalAccRewards, 2e18);               
-        assertEq(vaultA.accounting.accNftBoostRewards, 1e17);               // tokens staked. rewards accrued for 1st staker.
-        assertEq(vaultA.accounting.accCreatorRewards, 1e17);                // no tokens staked prior to t=3. therefore no creator rewards       
+        assertEq(vaultA.accounting.accNftStakingRewards, 1e17);               // tokens staked. rewards accrued for 1st NFT staker.
+        assertEq(vaultA.accounting.accCreatorRewards, 1e17);                      
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
         assertEq(vaultA.accounting.claimedRewards, 0); 
+    }
 
+    function testUserAT04() public {
+
+        DataTypes.UserInfo memory userA = getUserInfoStruct(vaultIdA, userA);
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+        /**
+            userIndex = vault.accounting.rewardsAccPerToken
+
+            accRewards = bonusBall(t2-t3) + 1e18(t3-t4) 
+                       = 1e18 + [1e18 * 0.8]
+                       = 1.8e18
+
+            accNftStakingRewards = 1st NFt staking incentive(t3-t4)
+                                 = [1e18 * 0.1]
+                                 = 1e17
+        */
+
+        // nft section 
+        assertEq(userA.stakedNfts, 1); 
+        assertEq(userA.userNftIndex, 0);
+
+        // tokens
+        assertEq(userA.stakedTokens, userAPrinciple);
+        assertEq(userA.userIndex, vaultA.accounting.rewardsAccPerToken);   
+
+        // rewards
+        assertEq(userA.accRewards, 1.8 ether);  // 1e18: bonusBall received + rewards less of fees
+        assertEq(userA.claimedRewards, 0);
+
+        assertEq(userA.accNftStakingRewards, 1e17);
+        assertEq(userA.claimedNftRewards, 0);
+
+        assertEq(userA.claimedCreatorRewards, 0);
     }
 }
 
+abstract contract StateT05 is StateT04 {
+
+    function setUp() public virtual override {
+        s
+    }
+}
