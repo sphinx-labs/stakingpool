@@ -1458,6 +1458,7 @@ contract StateT10Test is StateT10 {
 
 //Note: t=2 + 30days,  | 2,592,002
 //      vault A ends
+//      userA claims rewards 
 //      check userA and userB.
 abstract contract StateVaultAEnds is StateT10 {
 
@@ -1628,9 +1629,44 @@ contract StateVaultAEndsTest is StateVaultAEnds {
         assertEq(userA.claimedCreatorRewards, 3e17);        // 3e17: creatorFee
     }
 
-    function testUserACanUnstake() public {}
+    function testUsersCanUnstake() public {
+        // mcoa tokens
+        uint256 preMocaBalanceA = mocaToken.balanceOf(userA);
+        uint256 preMocaBalanceB = mocaToken.balanceOf(userB);
+        // stkMoca tokens
+        uint256 preStkMocaBalanceA = stakingPool.balanceOf(userA);
+        uint256 preStkMocaBalanceB = stakingPool.balanceOf(userB);
 
-    function testUserACanClaimCreatorFees() public {}
+        stakingPool.unstakeAll(vaultIdA, userA);
+        stakingPool.unstakeAll(vaultIdA, userB);
+        
+        // mcoa tokens
+        uint256 postMocaBalanceA = mocaToken.balanceOf(userA);
+        uint256 postMocaBalanceB = mocaToken.balanceOf(userB);
+        // stkMoca tokens
+        uint256 postStkMocaBalanceA = stakingPool.balanceOf(userA);
+        uint256 postStkMocaBalanceB = stakingPool.balanceOf(userB);
+
+        // get data
+        DataTypes.UserInfo memory userAInfo = getUserInfoStruct(vaultIdA, userA);
+        DataTypes.UserInfo memory userBInfo = getUserInfoStruct(vaultIdA, userB);
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+        
+        // check moca token balances: pre should be 0, unless claimed rewards 
+        // userA claimed rewards at t5: 6.48e23 | creatorFee: 3e17
+        assertEq(preMocaBalanceA,  userAInfo.claimedRewards + userAInfo.claimedCreatorRewards);              
+        assertEq(postMocaBalanceA, userAPrinciple + userAInfo.claimedRewards + userAInfo.claimedCreatorRewards);
+        // userB claimed rewards at t5: 3e17
+        assertEq(preMocaBalanceB, userBInfo.claimedRewards);              
+        assertEq(postMocaBalanceB, userBPrinciple + userBInfo.claimedRewards);
+
+        // check stkMoca token balances: 0 after unstaking
+        assertEq(postStkMocaBalanceA, 0);
+        assertEq(preStkMocaBalanceA, userAPrinciple);
+
+        assertEq(postStkMocaBalanceB, 0);
+        assertEq(preStkMocaBalanceB, userBPrinciple); 
+    }
 
 }
 
@@ -1749,7 +1785,7 @@ contract StateT2_592_003Test is StateT2_592_003 {
 
 //Note: t= 7 + 30days,  | 2,592,007
 //      vault C ends
-//      check userC
+//      userC unstakesAll upon vault.EndTime
 abstract contract StateTVaultCEnds is StateT2_592_003 {
 
     function setUp() public virtual override {
@@ -1879,6 +1915,7 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         assertEq(vaultC.accounting.claimedRewards/1e15, 1.222e18/1e15);                   //userA: 6.48e23, userB: 3e17, creatorFee: 3e17
     } 
 
+    // claimFees + claimRewards
     function testUserCVaultCEnds() public {
         
         vm.startPrank(userC);
@@ -1929,19 +1966,14 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         assertEq(mocaToken.balanceOf(userC), vaultC.accounting.claimedRewards + userCPrinciple);
         // mocaBal: 1166479955555555555555472 [1.166e24]
         // claimedRewards: 1166399955555555555555472 [1.166e24]
-        // 8e19           _. staked amount
+        // staked amount: 8e19
 
         /**
         events
          claimFees: 129599933333333333333332 [1.295e23] -- creator
          claimRewards:  1036798800000000000000000 [1.036e24]
-
         */
     }
-
-    function testUserACanUnstake() public {}
-
-    function testUserACanClaimCreatorFees() public {}
 
 }
 
