@@ -228,21 +228,28 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // update indexes and book all prior rewards
         (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
-        // update user
+        // update user & book 1st stake incentive
         userInfo.stakedNfts += amount;
-        // book 1st stake incentive
         if(vault.stakedNfts == 0) {
             userInfo.accNftStakingRewards = vault.accounting.accNftStakingRewards;
             emit NftFeesAccrued(onBehalfOf, userInfo.accNftStakingRewards);
         }
 
-        // cache old data; multiplier 
+        // calc. delta
         uint256 oldMultiplier = vault.multiplier;
+        uint256 oldAllocPoints = vault.allocPoints;
         
         // update vault
         vault.stakedNfts += amount;
         vault.multiplier += amount * nftMultiplier;
-        vault.allocPoints += vault.stakedTokens * nftMultiplier;
+
+        //calc. new alloc points
+        uint256 newAllocPoints = vault.stakedTokens * vault.multiplier;
+        uint256 deltaAllocPoints = newAllocPoints - oldAllocPoints;
+
+        // update allocPoints
+        vault.allocPoints += deltaAllocPoints;
+        pool.totalAllocPoints += deltaAllocPoints;
 
         // update storage
         vaults[vaultId] = vault;

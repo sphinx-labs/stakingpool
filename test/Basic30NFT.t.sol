@@ -536,8 +536,9 @@ contract StateT03Test is StateT03 {
 
 //Note: t=04,  
 //      userA stakes an nft token into VaultA. 
-//      vault multiplier increases to 2; so should allocPoints.
+//      vault multiplier increases; so should allocPoints.
 //      rewards emitted frm t=3 to t-4 is allocated to userA only.
+//      account for bonusBall, 1st NFT incentive, and token staking rewards
 abstract contract StateT04 is StateT03 {
     // 
     function setUp() public virtual override {
@@ -555,11 +556,143 @@ contract StateT04Test is StateT04 {
     function testPoolT04() public {
 
         DataTypes.PoolAccounting memory pool = getPoolStruct();
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
         /**
             From t=3 to t=4, Pool emits 1e18 rewards
             There is only 1 vault in existence, which receives the full 1e18 of rewards
              - rewardsAccruedPerToken = 1e18 / totalAllocPoints 
                                       = 1e18 / userAPrinciple
+                                      = 1e18 / 50e18
+                                      = 2e16
+             - poolIndex should therefore be updated to 1e16 + 2e16 = 3e16 (index represents rewardsPerToken since inception)
+
+            Calculating index:
+            - poolIndex = (eps * timeDelta * precision / totalAllocPoints) + oldIndex
+             - eps: 1e18 
+             - oldIndex: 1e16
+             - timeDelta: 1 seconds 
+             - totalAllocPoints: 50e18
+            
+            - poolIndex = (1e18 * 1 * 1e18 / 50e18 ) + 1e16 = 2e16 + 1e16 = 3e16
+            
+        */
+
+        assertEq(pool.totalAllocPoints, (userAPrinciple * vaultA.multiplier)); 
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex, 3e16);
+        assertEq(pool.poolLastUpdateTimeStamp, 4);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 2 ether);
+    }
+
+    function testVaultAT04() public {
+
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+        /**
+            userA has staked into vaultA @t=3.
+            rewards emitted from t3 to t4, allocated to userA.
+             
+            rewards & fees:
+             incomingRewards = 1e18
+             accCreatorFee = 1e18 * 0.1e18 / precision = 1e17
+             accCreatorFee = 1e18 * 0.1e18 / precision = 1e17
+
+             totalAccRewards += incomingRewards = 1e18 + incomingRewards = 1e18 + 1e18 = 2e18
+            
+             rewardsAccPerToken += incomingRewards - fees / stakedTokens = (1e18 - 2e17)*1e18 / 50e18 = 1.6e16
+
+        */
+       
+        //uint256 rewardsAccPerToken = (vaultA.accounting.vaultIndex - vaultA.accounting.accNftStakingRewards - vaultA.accounting.accCreatorRewards) / vaultA.stakedTokens;
+
+        // nft section 
+        assertEq(vaultA.stakedNfts, 1); 
+        assertEq(vaultA.multiplier, 3);
+        assertEq(vaultA.accounting.vaultNftIndex, 0);       //no nft staked before: so index 0
+
+        // tokens
+        assertEq(vaultA.stakedTokens, userAPrinciple); 
+        assertEq(vaultA.allocPoints, userAPrinciple * vaultA.multiplier);
+
+        // token index
+        assertEq(vaultA.accounting.vaultIndex, 3e16); 
+        assertEq(vaultA.accounting.rewardsAccPerToken, 1.6e16); 
+
+        // rewards 
+        assertEq(vaultA.accounting.totalAccRewards, 2e18);               
+        assertEq(vaultA.accounting.accNftStakingRewards, 1e17);               // tokens staked. rewards accrued for 1st NFT staker.
+        assertEq(vaultA.accounting.accCreatorRewards, 1e17);                      
+        assertEq(vaultA.accounting.bonusBall, 1e18); 
+
+        assertEq(vaultA.accounting.claimedRewards, 0); 
+    }
+
+    function testUserAT04() public {
+
+        DataTypes.UserInfo memory userA = getUserInfoStruct(vaultIdA, userA);
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+        /**
+            userIndex = vault.accounting.rewardsAccPerToken
+
+            accRewards = bonusBall(t2-t3) + 1e18(t3-t4) 
+                       = 1e18 + [1e18 * 0.8]
+                       = 1.8e18
+
+            accNftStakingRewards = 1st NFt staking incentive(t3-t4)
+                                 = [1e18 * 0.1]
+                                 = 1e17
+        */
+
+        // nft section 
+        assertEq(userA.stakedNfts, 1); 
+        assertEq(userA.userNftIndex, 0);
+
+        // tokens
+        assertEq(userA.stakedTokens, userAPrinciple);
+        assertEq(userA.userIndex, vaultA.accounting.rewardsAccPerToken);   
+
+        // rewards
+        assertEq(userA.accRewards, 1.8 ether);  // 1e18: bonusBall received + rewards less of fees
+        assertEq(userA.claimedRewards, 0);
+
+        assertEq(userA.accNftStakingRewards, 1e17);
+        assertEq(userA.claimedNftRewards, 0);
+
+        assertEq(userA.claimedCreatorRewards, 0);
+    }
+}
+
+//Note: t=05  
+//      userB stakes tokens into VaultA.
+//      userB should enjoy a multiplier effect from prior staked NFT - reflected in allocPoints
+//      rewards emitted frm t-4 to t-5 is allocated to userA only.
+abstract contract StateT05 is StateT04 {
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(5);
+
+        vm.prank(userB);
+        stakingPool.stakeTokens(vaultIdA, userB, userBPrinciple);
+    }
+}
+
+
+contract StateT05Test is StateT05 {
+
+    function testPoolT04() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+            From t=4 to t=5, Pool emits 1e18 rewards
+            There is only 1 vault in existence, which receives the full 1e18 of rewards
+             - rewardsAccruedPerToken = 1e18 / totalAllocPoints 
+                                      = 1e18 / userAPrinciple * multplier
                                       = 1e18 / 50e18
                                       = 2e16
              - poolIndex should therefore be updated to 1e16 + 2e16 = 3e16 (index represents rewardsPerToken since inception)
@@ -659,12 +792,5 @@ contract StateT04Test is StateT04 {
         assertEq(userA.claimedNftRewards, 0);
 
         assertEq(userA.claimedCreatorRewards, 0);
-    }
-}
-
-abstract contract StateT05 is StateT04 {
-
-    function setUp() public virtual override {
-        s
     }
 }
