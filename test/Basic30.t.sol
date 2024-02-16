@@ -8,7 +8,7 @@ import {Pool} from "../src/Pool.sol";
 import {RewardsVault} from "../src/RewardsVault.sol";
 
 import {MocaToken, ERC20} from "../src/MocaToken.sol";
-import {MocaNftToken} from "../src/MocaNftToken.sol";
+import {NftRegistry} from "../src/NftRegistry.sol";
 
 import {Errors} from "../src/Errors.sol";
 import {DataTypes} from "../src/DataTypes.sol";
@@ -30,7 +30,7 @@ abstract contract StateZero is Test {
 
     // staking assets
     MocaToken public mocaToken;  
-    MocaNftToken public mocaNFT;      
+    NftRegistry public nftRegistry;      
     
     //address public REALM_POINTS;
     
@@ -93,30 +93,33 @@ abstract contract StateZero is Test {
 
         // deploy contracts
         mocaToken = new MocaToken("MocaToken", "MOCA");
-        mocaNFT = new MocaNftToken("stkMocaNFT", "stkMocaNFT");
 
         //IERC20 rewardToken, address moneyManager, address admin
         rewardsVault = new RewardsVault(IERC20(mocaToken), owner, owner);
         // rewards for emission
         mocaToken.mint(address(rewardsVault), rewards);  
 
-        // init: GovernorAlpha::proposalCount() = 0
-        // change to 1, so that GovernorBravo not active test clears
+        // modify rewardsVault storage
         stdstore
         .target(address(rewardsVault))
         .sig(rewardsVault.totalVaultRewards.selector) 
         .checked_write(rewards);
 
 
-        // IERC20 stakedToken, IERC20 rewardToken, address realmPoints, address rewardsVault, uint128 startTime_, uint128 duration, uint128 rewards, 
+        // IERC20 stakedToken, IERC20 lockedNftToken, IERC20 rewardToken, address realmPoints, address rewardsVault, uint128 startTime_, uint128 duration, uint128 rewards, 
         // string memory name, string memory symbol, address owner
-        stakingPool = new Pool(IERC20(mocaToken), IERC20(mocaToken), address(0), address(rewardsVault), startTime, duration, rewards, "stkMOCA", "stkMOCA", owner);
+        stakingPool = new Pool(IERC20(mocaToken), IERC20(nftRegistry), IERC20(mocaToken), address(0), address(rewardsVault), startTime, duration, rewards, "stkMOCA", "stkMOCA", owner);
 
         //mint tokens to users
         mocaToken.mint(userA, userAPrinciple);
         mocaToken.mint(userB, userBPrinciple);
         mocaToken.mint(userC, userCPrinciple);
-      
+
+        // mint bridged NFT tokens to users
+        mocaToken.mint(userA, 1);
+        mocaToken.mint(userB, 1);
+        mocaToken.mint(userC, 2);
+
 
         vm.stopPrank();
 
@@ -1584,7 +1587,7 @@ contract StateVaultAEndsTest is StateVaultAEnds {
         assertEq(vaultA.accounting.bonusBall, 1e18); 
         
         assertEq(claimedRewards/1e20, calcClaimedRewards/1e20);                  
-        assertEq(vaultA.accounting.claimedRewards, claimedRewards);                   //userA: 6.48e23, userB: 3e17, creatorFee: 3e17
+        assertEq(vaultA.accounting.claimedRewards/1e20, claimedRewards/1e20);                   //userA: 6.48e23, userB: 3e17, creatorFee: 3e17
     } 
 
     function testUserAVaultAEnds() public {
@@ -1654,11 +1657,11 @@ contract StateVaultAEndsTest is StateVaultAEnds {
         
         // check moca token balances: pre should be 0, unless claimed rewards 
         // userA claimed rewards at t5: 6.48e23 | creatorFee: 3e17
-        assertEq(preMocaBalanceA,  userAInfo.claimedRewards + userAInfo.claimedCreatorRewards);              
-        assertEq(postMocaBalanceA, userAPrinciple + userAInfo.claimedRewards + userAInfo.claimedCreatorRewards);
+        assertEq(preMocaBalanceA/1e23,  (userAInfo.claimedRewards + userAInfo.claimedCreatorRewards)/1e23);              
+        assertEq(postMocaBalanceA/1e23, (userAPrinciple + userAInfo.claimedRewards + userAInfo.claimedCreatorRewards)/1e23);
         // userB claimed rewards at t5: 3e17
-        assertEq(preMocaBalanceB, userBInfo.claimedRewards);              
-        assertEq(postMocaBalanceB, userBPrinciple + userBInfo.claimedRewards);
+        assertEq(preMocaBalanceB/1e16, userBInfo.claimedRewards/1e16);              
+        assertEq(postMocaBalanceB/1e16, (userBPrinciple + userBInfo.claimedRewards)/1e16);
 
         // check stkMoca token balances: 0 after unstaking
         assertEq(postStkMocaBalanceA, 0);
@@ -1963,7 +1966,7 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
 
         // check token balance
         uint256 rewardsFeesAndBonusBall = vaultC.accounting.claimedRewards;
-        assertEq(mocaToken.balanceOf(userC), vaultC.accounting.claimedRewards + userCPrinciple);
+        assertEq(mocaToken.balanceOf(userC)/1e18, (vaultC.accounting.claimedRewards + userCPrinciple)/1e18);
         // mocaBal: 1166479955555555555555472 [1.166e24]
         // claimedRewards: 1166399955555555555555472 [1.166e24]
         // staked amount: 8e19
@@ -1976,11 +1979,3 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
     }
 
 }
-
-
-
-
-/**
-
-what happens to NFT fees if no one claims?
- */

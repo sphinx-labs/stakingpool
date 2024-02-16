@@ -27,9 +27,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     address public REALM_POINTS;
 
     // multipliers
-    uint256 public constant nftMultiplier = 1;
-    uint256 public constant duration60Multiplier = 1;
-    uint256 public constant duration90Multiplier = 1;
+    uint256 public constant nftMultiplier = 2;
+    uint256 public constant duration60Multiplier = 2;
+    uint256 public constant duration90Multiplier = 3;
     uint256 public constant vaultBaseAllocPoints = 100 ether;     // need 18 dp precision for pool index calc
 
     uint256 public constant PRECISION = 18;                       // token dp
@@ -79,7 +79,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
 
     constructor(
-        IERC20 stakedToken, IERC20 rewardToken, address realmPoints, address rewardsVault, 
+        IERC20 stakedToken, IERC20 lockedNftToken, IERC20 rewardToken, address realmPoints, address rewardsVault, 
         uint256 startTime_, uint256 duration, uint256 rewards,
         string memory name, string memory symbol, address owner) payable Ownable(owner) ERC20(name, symbol) {
     
@@ -88,6 +88,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         require(rewards > 0, "Invalid rewards");
 
         STAKED_TOKEN = stakedToken;
+        LOCKED_NFT_TOKEN = lockedNftToken;
         REWARD_TOKEN = rewardToken;
 
         REALM_POINTS = realmPoints;
