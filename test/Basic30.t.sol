@@ -93,6 +93,7 @@ abstract contract StateZero is Test {
 
         // deploy contracts
         mocaToken = new MocaToken("MocaToken", "MOCA");
+        nftRegistry = new NftRegistry("bridgedMocaNft", "bMocaNft");
 
         //IERC20 rewardToken, address moneyManager, address admin
         rewardsVault = new RewardsVault(IERC20(mocaToken), owner, owner);
@@ -116,10 +117,9 @@ abstract contract StateZero is Test {
         mocaToken.mint(userC, userCPrinciple);
 
         // mint bridged NFT tokens to users
-        mocaToken.mint(userA, 1);
-        mocaToken.mint(userB, 1);
-        mocaToken.mint(userC, 2);
-
+        nftRegistry.mint(userA, 1);
+        nftRegistry.mint(userB, 1);
+        nftRegistry.mint(userC, 2);
 
         vm.stopPrank();
 
@@ -1587,7 +1587,7 @@ contract StateVaultAEndsTest is StateVaultAEnds {
         assertEq(vaultA.accounting.bonusBall, 1e18); 
         
         assertEq(claimedRewards/1e20, calcClaimedRewards/1e20);                  
-        assertEq(vaultA.accounting.claimedRewards/1e20, claimedRewards/1e20);                   //userA: 6.48e23, userB: 3e17, creatorFee: 3e17
+        assertEq(vaultA.accounting.claimedRewards, claimedRewards);                   //userA: 6.48e23, userB: 3e17, creatorFee: 3e17
     } 
 
     function testUserAVaultAEnds() public {
@@ -1657,11 +1657,11 @@ contract StateVaultAEndsTest is StateVaultAEnds {
         
         // check moca token balances: pre should be 0, unless claimed rewards 
         // userA claimed rewards at t5: 6.48e23 | creatorFee: 3e17
-        assertEq(preMocaBalanceA/1e23,  (userAInfo.claimedRewards + userAInfo.claimedCreatorRewards)/1e23);              
-        assertEq(postMocaBalanceA/1e23, (userAPrinciple + userAInfo.claimedRewards + userAInfo.claimedCreatorRewards)/1e23);
+        assertEq(preMocaBalanceA,  userAInfo.claimedRewards + userAInfo.claimedCreatorRewards);              
+        assertEq(postMocaBalanceA, userAPrinciple + userAInfo.claimedRewards + userAInfo.claimedCreatorRewards);
         // userB claimed rewards at t5: 3e17
-        assertEq(preMocaBalanceB/1e16, userBInfo.claimedRewards/1e16);              
-        assertEq(postMocaBalanceB/1e16, (userBPrinciple + userBInfo.claimedRewards)/1e16);
+        assertEq(preMocaBalanceB, userBInfo.claimedRewards);              
+        assertEq(postMocaBalanceB, userBPrinciple + userBInfo.claimedRewards);
 
         // check stkMoca token balances: 0 after unstaking
         assertEq(postStkMocaBalanceA, 0);
@@ -1966,7 +1966,7 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
 
         // check token balance
         uint256 rewardsFeesAndBonusBall = vaultC.accounting.claimedRewards;
-        assertEq(mocaToken.balanceOf(userC)/1e18, (vaultC.accounting.claimedRewards + userCPrinciple)/1e18);
+        assertEq(mocaToken.balanceOf(userC), vaultC.accounting.claimedRewards + userCPrinciple);
         // mocaBal: 1166479955555555555555472 [1.166e24]
         // claimedRewards: 1166399955555555555555472 [1.166e24]
         // staked amount: 8e19

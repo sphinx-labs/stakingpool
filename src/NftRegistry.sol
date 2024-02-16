@@ -6,7 +6,7 @@ import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 // issues
 contract NftRegistry is ERC20 {
 
-    constructor() ERC20("bridgedNftToken", "BNT"){}
+    constructor(string memory name, string memory symbol) ERC20(name, symbol){}
 
     function mint(address user, uint256 amount) external {
         _mint(user, amount);
