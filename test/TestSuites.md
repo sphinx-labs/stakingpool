@@ -35,3 +35,11 @@
 stake before
 stake during
 stake after : should fail
+
+userA: stake 1 nft in vaultA
+...
+userB: stake 1 nft in vaultA
+...
+create vaultC
+...
+userC: stake 1 nft in vaultC

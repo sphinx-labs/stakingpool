@@ -17,7 +17,6 @@ internal to a vault
 
 forge install  openzeppelin/openzeppelin-contracts@v5.0.1
 
-
 ## AllocPoints
 
 1 allocPoint = "1 token"
@@ -31,6 +30,7 @@ cos of multiplier/boosting effects.
 poolIndex  = accRewardsPerAllocPoint
 
 ### Pool Index
+
 poolIndex reflects the rewardsAccruedPerAllocPoint since inception.
 poolIndex will be updated when either one of the following changes:
     1. totalAllocPoints
@@ -56,10 +56,32 @@ Subsequently, each time the user engages in state-changing behaviour, his prior 
 
 ### Fees and rewards
 
-The userIndex is nett of fees.
+The userIndex is net of fees.
 vaultIndex * fees(0.80) = userIndex.
 
 I am applying fees onto vaultIndex - which is denominated in 18 dp precision, as defined by our Moca token. So sensible to stick with that.
+
+## NftIndex and rewards
+
+We want to incentivize users to stake NFTs in pools that do not have any staked in them.
+
+At a vault level:
+
+- If vault has tokens staked, apply NFT fee.
+- In vault, `accNftBoostRewards` is incremented reflected the fee cut on the incoming rewards for tt period.
+- if there are stakedNfts as well, `vaultNftIndex` is incremented, reflecting rewardsAccPerNFT.
+
+This means tt from 1st token staked till 1st nft staked:
+
+- accNftBoostRewards is incremented
+- vaultNftIndex is not.
+
+vaultNftIndex only begins to increment from 0, after the 1st nft is staked.
+Therefore, the initial period during which only the `accNftBoostRewards` increments while vaultNftIndex does not, is reflective of the incentive to the 1st person to stake their NFT into the vault.
+
+Similar concept to bonusBall - 1st mover advantage.
+
+Subsequently, nftStakingRewards are calculated as per the nftIndex which can accommodate calculating the rewards split across different nft staking actions by different users across multiple points in time.
 
 ## Contingencies
 

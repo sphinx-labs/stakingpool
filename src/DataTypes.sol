@@ -62,7 +62,7 @@ contract DataTypes {
             
         // rewards | based on allocPoints
         uint256 totalAccRewards;
-        uint256 accNftBoostRewards;
+        uint256 accNftStakingRewards;
         uint256 accCreatorRewards;    
         uint256 bonusBall;
 
@@ -90,7 +90,7 @@ contract DataTypes {
         uint256 claimedRewards;
 
         //rewards: NFTs
-        uint256 accNftBoostRewards; 
+        uint256 accNftStakingRewards; 
         uint256 claimedNftRewards;
 
         //rewards: creatorFees

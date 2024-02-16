@@ -226,13 +226,14 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // update indexes and book all prior rewards
         (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
+        // update vault
         vault.stakedNfts += amount;
+        vault.multiplier += amount * nftMultiplier;
+        vault.allocPoints += vault.stakedTokens * nftMultiplier;
 
-        // update multiplier
-        
-        //note: mint stkMocaNft?
-
-
+        // book 1st stake incentive
+        if(vault.stakedNfts == 0) userInfo.accNftStakingRewards = vault.accounting.accNftStakingRewards;
+       
         emit StakedMocaNft(onBehalfOf, vaultId, amount);
 
         // grab MOCA
@@ -516,6 +517,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
         if(userInfo.stakedNfts > 0) {
             if(userInfo.userNftIndex != newUserNftIndex){
+
                 // total accrued rewards from staking NFTs
                 uint256 accNftBoostRewards = (newUserNftIndex - userInfo.userNftIndex) * userInfo.stakedNfts;
                 userInfo.accNftBoostRewards += accNftBoostRewards;
