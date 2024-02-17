@@ -408,8 +408,13 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         vaults[vaultId] = vault_;
     }
 
-    function updateCreatorFee(bytes32 vaultId, uint256 fee )external whenStarted whenNotPaused {}
-    function updateNftFee(bytes32 vaultId, uint256 fee )external whenStarted whenNotPaused {}
+    function updateCreatorFee(bytes32 vaultId, uint256 fee )external whenStarted whenNotPaused {
+
+    }
+
+    function updateNftFee(bytes32 vaultId, uint256 fee )external whenStarted whenNotPaused {
+        
+    }
 
 
 //-------------------------------internal-------------------------------------------

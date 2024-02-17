@@ -1795,6 +1795,151 @@ contract StateVaultAEndTimeTest is StateVaultAEndTime {
 
         stakingPool.stakeTokens(vaultIdA, userA, userAPrinciple);
     }
-    
+   
 }
 
+//Note:  t=2_592_007 | 7 + 30 days
+//      vault C ends
+//      poolAllocPOints should be decremented to 0.
+//      userC claim all rewards, fees and unstake their assets.
+abstract contract StateTVaultCEnds is StateVaultAEndTime {
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(7 + 30 days);  // 2592007
+
+        // unstake all - to update all user's states
+        stakingPool.unstakeAll(vaultIdC, userC);
+        stakingPool.claimRewards(vaultIdC, userC);
+        stakingPool.claimFees(vaultIdC, userC);
+    }   
+}
+
+contract StateTVaultCEndsTest is StateTVaultCEnds {
+
+    function testPoolVaultCEndTime() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+
+            At=2_592_002
+             - poolIndex = 4.05003622e21 (index represents rewardsPerToken since inception)
+                         ~ 4.050e21
+            
+            From t=2_592_002 to t=2_592_007, Pool emits 5e18 rewards; all to vaultC
+             - rewardsAccruedPerAllocPoint = 5e18 / totalAllocPoints 
+                                           = 5e18 / (80e18 * 3) 
+                                           = 2.083333e16
+
+             - poolIndex should therefore be updated to 4.050e21 + 2.083333e16 = 4.05002083333e21 (index represents rewardsPerToken since inception)
+                                                                                ~ 4.050e21
+        */
+
+        assertEq(pool.totalAllocPoints, 0);    
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex/1e18, 4.050e21/1e18);                
+        assertEq(pool.poolLastUpdateTimeStamp, 2_592_007);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 2_592_005 ether);
+    }
+
+    function testVaultCHasEnded() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+        /**     vaultC lifespan: [t7 - t2_592_007]
+
+            Total rewards accrued by vaultC:             
+             t7 - t9: 4e17 (bonusBall)
+             t9 - t2_592_002: 2591993e18 * 240e18 / 6.4e20 = 9.71997375e23
+             t2_592_002 - t2_592_007: 5e18 
+
+             totalAccRewards = 4e17 + 9.71997375e23 + 5e18
+                             = 9.72002775e23
+                             ~ 9.720e23
+
+             accCreatorFee = 9.72002775e23 * 0.1 = 9.72002775e22 ~ 9.720e22
+             accNftStakingRewards = 9.72002775e23 * 0.1 = 9.72002775e22 ~ 9.720e22
+
+            rewardsAccPerToken: 
+             [t9 - t2_592_002]
+             incomingRewards: 9.71997375e23 + 5e18 = 9.72002375e23
+             incomingRewardsLessOfFees = 9.72002375e23 * 0.8 
+                                       = 7.776019e23
+            
+             rewardsAccPerToken = 7.776019e23 / 80e18
+                                = 9.72002375e21
+                                ~ 9.720e21
+
+            vaultNftIndex
+             [t9 - t2_592_007]
+             accNftStakingRewards = 9.720e22
+                                  
+             nftIndex = (accTotalNFTFee / vault.stakedNfts)
+             nftIndex = (9.720e22 / 1) 
+                      = 9.720e22
+
+        */
+       
+
+        // nft section 
+        assertEq(vaultC.stakedNfts, 0); 
+        assertEq(vaultC.multiplier, 3);
+        assertEq(vaultC.accounting.vaultNftIndex/1e19, 9.720e22/1e19);      
+
+        // tokens
+        assertEq(vaultC.stakedTokens, 0); 
+        assertEq(vaultC.allocPoints, 0);
+        
+        // token index
+        assertEq(vaultC.accounting.vaultIndex, pool.poolIndex); 
+        assertEq(vaultC.accounting.rewardsAccPerToken/1e18, 9.720e21/1e18);         
+
+        // rewards 
+        assertEq(vaultC.accounting.totalAccRewards/1e20,  9.720e23/1e20);                 
+        assertEq(vaultC.accounting.accNftStakingRewards/1e19, 9.720e22/1e19);            
+        assertEq(vaultC.accounting.accCreatorRewards/1e19, 9.720e22/1e19);                  
+        assertEq(vaultC.accounting.bonusBall, 4e17); 
+
+        assertEq(vaultC.accounting.claimedRewards/1e20,  9.720e23/1e20);    
+       
+    }
+
+    function testUserCVaultCHasEnded() public {
+
+        DataTypes.UserInfo memory userC = getUserInfoStruct(vaultIdC, userC);
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+        //userC nft incentive =- 0? | bonusBall: 4e17
+
+        /** UserC is a beneficiary of bonusball of 1st nft staking incentive
+
+            UserC is the sole beneficiary of all of VaultC rewards and fees.
+
+
+             
+        */
+
+        // nft section 
+        assertEq(userC.stakedNfts, 0); 
+        assertEq(userC.userNftIndex, vaultC.accounting.vaultNftIndex);
+
+        // tokens
+        assertEq(userC.stakedTokens, 0);
+        assertEq(userC.userIndex, vaultC.accounting.rewardsAccPerToken);   
+
+        // rewards
+        assertEq(userC.accRewards/1e20,     (vaultC.accounting.totalAccRewards * 8/10) /1e20);                //7.776e23 | 9.72e23
+        assertEq(userC.claimedRewards/1e20, (vaultC.accounting.totalAccRewards * 8/10) /1e20);         
+
+        assertEq(userC.accNftStakingRewards, vaultC.accounting.accNftStakingRewards);   
+        assertEq(userC.claimedNftRewards, vaultC.accounting.accNftStakingRewards);         
+
+        assertEq(userC.claimedCreatorRewards, vaultC.accounting.accCreatorRewards);     
+
+    }
+
+}

@@ -41,20 +41,6 @@
 - t_: vaultC end
 
 
-
-
-stake before
-stake during
-stake after : should fail
-
-userA: stake 1 nft in vaultA
-...
-userB: stake 1 nft in vaultA
-...
-create vaultC
-...
-userC: stake 1 nft in vaultC
-
 ### need to test double staking of nft
 
 #### does nft multiplier affect vaultBaseTokens?
