@@ -37,7 +37,7 @@
 - t8: userC stakes nft
 - t9: userC stakes tokens
 - t10: check updated vault
-- t_: vaultA end (userC cannot stake nft once vault ends)
+- t_StateVaultAEndTime: vaultA ends (userC cannot stake nft once vault ends)
 - t_: vaultC end
 
 

@@ -612,8 +612,6 @@ contract StateT04Test is StateT04 {
 
         */
        
-        //uint256 rewardsAccPerToken = (vaultA.accounting.vaultIndex - vaultA.accounting.accNftStakingRewards - vaultA.accounting.accCreatorRewards) / vaultA.stakedTokens;
-
         // nft section 
         assertEq(vaultA.stakedNfts, 1); 
         assertEq(vaultA.multiplier, 3);
@@ -1659,11 +1657,77 @@ contract StateVaultAEndTimeTest is StateVaultAEndTime {
     }
 
     function testUserAVaultAHasEnded() public {
+        DataTypes.UserInfo memory userA = getUserInfoStruct(vaultIdA, userA);
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
 
-        //user nft incentive" 1e17
+        //user nft incentive" 1e17 | bonusBall: 1e18
+
+        /** UserA is a beneficiary of bonusball of 1st nft staking incentive
+
+            userIndex = vault.accounting.rewardsAccPerToken
+            userNftIndex = vaultA.accounting.vaultNftIndex
+
+            rewardsAccPerToken
+             [t6 - t2_592_002]
+             rewardsAccPerToken: 1e18 + 8e17 + 8e17 + 6.25e17 + 1.619995e24         //ref: Vault breakdown
+                               = 1.619998225e22
+             rewardsLessOfFees = 1.619998225e22 * 0.8 
+                               = 1.29599858e22
+            accRewards 
+             [t6 - t2_592_002]
+             accRewards = rewardsLessOfFees * userBPrinciple
+                       = 1.619998225e22 * 50
+                       = 8.099991125e23
+             [t3 - t6]
+             accRewards = 1.8e18
+            
+             [total]
+             accRewards = 1.8e18 + 8.099991125e23 
+                       = 8.100009125e23
+                       = 8.100e23
+
+            accNftStakingRewards 
+             [t6 - t2_592_002]
+             accNftStakingRewards = nftFeeForPeriod / totalStakedNfts 
+                                 = 1.619998225e23 / 2
+                                 = 8.099991125e22
+             [t3 - t4]
+              accNftStakingRewards = 1e17  (1st NFt staking incentive)
+             
+             [t4 - t5]
+              accNftStakingRewards = 1e18 * 0.1 = 1e17 
+
+             [t5 - t6]
+             accNftStakingRewards = 5e16
+            
+            accNftStakingRewards = 1e7 + 1e17 + 5e16 + 8.099991125e22
+                                 = 8.100006125000001e22
+                                 ~ 8.100e22
+            
+            creatorRewards: totalRewards * 0.1 = 1.620e24 * 0.1
+             
+        */
+
+        // nft section 
+        assertEq(userA.stakedNfts, 0); 
+        assertEq(userA.userNftIndex, vaultA.accounting.vaultNftIndex);
+
+        // tokens
+        assertEq(userA.stakedTokens, 0);
+        assertEq(userA.userIndex, vaultA.accounting.rewardsAccPerToken);   
+
+        // rewards
+        assertEq(userA.accRewards/1e20, 8.100e23/1e20);             
+        assertEq(userA.claimedRewards/1e20, 8.100e23/1e20);         
+
+        assertEq(userA.accNftStakingRewards/1e19, 8.100e22/1e19);   
+        assertEq(userA.claimedNftRewards/1e19, 8.100e22/1e19);         
+
+        assertEq(userA.claimedCreatorRewards/1e20, 1.62e23/1e20);   
+
     }
 
-    function testUserBT06() public {
+    function testUserBVaultAHasEnded() public {
 
         DataTypes.UserInfo memory userB = getUserInfoStruct(vaultIdA, userB);
         DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
@@ -1715,10 +1779,22 @@ contract StateVaultAEndTimeTest is StateVaultAEndTime {
 
         assertEq(userB.claimedCreatorRewards, 0);
     }
-}
 
-/**
-            accNftStakingRewards = 1e17 + [1e18 * 0.2]                 | 1st NFT staker incentive + nft fee
-                        = 3e17
-*/
+    function testCannotStakeNFTVaultEnded() public {
+        vm.prank(userC);
+
+        vm.expectRevert(abi.encodeWithSelector(Errors.VaultMatured.selector, vaultIdA));
+
+        stakingPool.stakeNfts(vaultIdA, userC, 1);
+    }
+
+    function testCannotStakeTokensVaultEnded() public {
+        vm.prank(userC);
+        
+        vm.expectRevert(abi.encodeWithSelector(Errors.VaultMatured.selector, vaultIdA));
+
+        stakingPool.stakeTokens(vaultIdA, userA, userAPrinciple);
+    }
+    
+}
 

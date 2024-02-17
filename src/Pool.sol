@@ -125,10 +125,12 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     function createVault(address onBehalfOf, uint8 salt, DataTypes.VaultDuration duration, uint256 creatorFee, uint256 nftFee) external whenStarted whenNotPaused {
         //rp check
 
-        // period check 
-        if(uint8(duration) == 0) revert Errors.InvalidVaultPeriod();        
+        // invalid selection
+        if(uint8(duration) == 0) revert Errors.InvalidVaultPeriod();      
+        
+        // period check
         uint256 vaultEndTime = block.timestamp + (30 days * uint8(duration));           //duration: 30,60,90
-        if (endTime < vaultEndTime) revert Errors.InsufficientTimeLeft();
+        if (endTime <= vaultEndTime) revert Errors.InsufficientTimeLeft();
 
         // vaultId generation
         bytes32 vaultId = _generateVaultId(salt);
@@ -181,6 +183,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // update indexes and book all prior rewards
        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
+        // if vault matured, no staking
+        if(vault.endTime <= block.timestamp) revert Errors.VaultMatured(vaultId);
+        
         // calc. allocPoints
         uint256 incomingAllocPoints = (amount * vault.multiplier);
         uint256 priorVaultAllocPoints = vault.allocPoints;
@@ -227,6 +232,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
         // update indexes and book all prior rewards
         (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+
+        // if vault matured, no staking
+        if(vault.endTime <= block.timestamp) revert Errors.VaultMatured(vaultId);
 
         // update user & book 1st stake incentive
         userInfo.stakedNfts += amount;
@@ -606,18 +614,17 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     }
 
     ///@dev withdraw only principal. indexes are not updated.
-    function emergencyExit(bytes32 vaultId, address onBehalfOf) external whenPaused {
+    function emergencyExit(bytes32 vaultId, address onBehalfOf) external whenStarted whenPaused {
         require(isFrozen = true, "Pool not frozen");
 
         // usual blah blah checks
-        require(block.timestamp >= startTime, "Not started");       //note: do we want?
         require(vaultId > 0, "Invalid vaultId");
 
         // get vault + check if has been created
        (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _cache(vaultId, onBehalfOf);
 
         // check if vault has matured
-        if(vault.endTime < block.timestamp) revert Errors.VaultNotMatured(vaultId);
+        if(vault.endTime < block.timestamp) revert Errors.VaultNotMatured(vaultId); //note: wtf
         if(userInfo.stakedNfts == 0 || userInfo.stakedNfts == 0) revert Errors.UserHasNothingStaked(vaultId, onBehalfOf);
 
         // revert if 0 balances of tokens or nfts?
