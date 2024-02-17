@@ -31,7 +31,18 @@
 - t2: vaultA created, by userA
 - t3: userA stakes in full (beneficiary of BonusBall)
 - t4: userA stakes nft
-- t5: userB stakes tokens in full
+- t5: userB stakes nft
+- t6: userB staked tokens in full
+- t7: userC creates vaultC
+- t8: userC stakes nft
+- t9: userC stakes tokens
+- t10: check updated vault
+- t_: vaultA end (userC cannot stake nft once vault ends)
+- t_: vaultC end
+
+
+
+
 stake before
 stake during
 stake after : should fail
@@ -43,3 +54,19 @@ userB: stake 1 nft in vaultA
 create vaultC
 ...
 userC: stake 1 nft in vaultC
+
+### need to test double staking of nft
+
+#### does nft multiplier affect vaultBaseTokens?
+
+- no
+- nft effects only work on stakedTokens
+- once vault has tokens are staked, nftFee is levied
+- nftIndex only starts incrementing once there are stakedTokens
+
+ if user stakes nft onto an empty vault, the multiplier will increase.
+ but the multiplier effect is not applied unto the vault as they are no stakedTokens
+ the vault continues to operate w/ vaultBaseAllocPoints (virtualShares) - which is not boosted by the nft multiplier.
+
+
+ nft staker can staked into a non-nft pool at the very last second to grab incentive

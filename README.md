@@ -57,3 +57,23 @@ restrict fns on stakingPoolL: onlyRouter
 
 realm points?
  - need ability to burn rp on creation?
+
+## Off-chain
+
+`if(latestPoolTimestamp > vault.endTime) return vault`
+
+- need a script to updateVaults seconds before they end
+- this is to update vaultIndex before the vault expires, as once the vault expires it cannot be updated.
+- avoid rewards slippage
+
+### AllocPoints
+
+- Once a vault ends, its allocPoints is not automatically deducted from the poolAllocPoints
+- Only when `unstake` is called, is vaultAllocPoints deducted and therefore poolAllocPoints
+- Do we wanna call unstake() for everyone?
+
+
+## Multiplier
+
+- don't update multiplier on unstake?
+- has no material impact on other vaults or allocPoints

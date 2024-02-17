@@ -435,7 +435,6 @@ abstract contract StateT03 is StateT02 {
         vm.prank(userA);
         stakingPool.stakeTokens(vaultIdA, userA, userAPrinciple);
     }
-
 }
 
 //Note: check that all values are updated correctly after the 1st stake has been made into vaultA.
@@ -685,7 +684,7 @@ abstract contract StateT05 is StateT04 {
         vm.warp(5);
 
         vm.prank(userB);
-        stakingPool.stakeTokens(vaultIdA, userB, userBPrinciple);
+        stakingPool.stakeNfts(vaultIdA, userB, userBNfts);
     }
 }
 
@@ -714,7 +713,7 @@ contract StateT05Test is StateT05 {
             - poolIndex = (1e18 * 1 * 1e18 / 150e18 ) + 3e16 = 6.6666e15 + 3e16 = 3.6666e16
         */
 
-        assertEq(pool.totalAllocPoints, (userAPrinciple + userBPrinciple) * 3); 
+        assertEq(pool.totalAllocPoints, userAPrinciple * 5);         // additional nft, multiplier: 3 -> 5
         assertEq(pool.emissisonPerSecond, 1 ether);
 
         assertEq(pool.poolIndex/1e13, 3.666e16/1e13);                 //rounding: recurring decimal
@@ -757,13 +756,13 @@ contract StateT05Test is StateT05 {
        
 
         // nft section 
-        assertEq(vaultA.stakedNfts, 1); 
-        assertEq(vaultA.multiplier, 3);
+        assertEq(vaultA.stakedNfts, 2); 
+        assertEq(vaultA.multiplier, 5);
         assertEq(vaultA.accounting.vaultNftIndex/1e13, 9.999e16/1e13);      // calculated val: 1e17 
 
         // tokens
-        assertEq(vaultA.stakedTokens, (userAPrinciple + userBPrinciple)); 
-        assertEq(vaultA.allocPoints, (userAPrinciple + userBPrinciple) * vaultA.multiplier);
+        assertEq(vaultA.stakedTokens, userAPrinciple); 
+        assertEq(vaultA.allocPoints, userAPrinciple * vaultA.multiplier);
 
         // token index
         assertEq(vaultA.accounting.vaultIndex/1e13, 3.666e16/1e13); 
@@ -799,11 +798,11 @@ contract StateT05Test is StateT05 {
         */
 
         // nft section 
-        assertEq(userB.stakedNfts, 0); 
+        assertEq(userB.stakedNfts, 1); 
         assertEq(userB.userNftIndex, vaultA.accounting.vaultNftIndex);
 
         // tokens
-        assertEq(userB.stakedTokens, userBPrinciple);
+        assertEq(userB.stakedTokens, 0);
         assertEq(userB.userIndex, vaultA.accounting.rewardsAccPerToken);   
 
         // rewards
@@ -816,4 +815,910 @@ contract StateT05Test is StateT05 {
         assertEq(userB.claimedCreatorRewards, 0);
     }
 }
+
+//Note: t=06
+//      userB stakes an nft into VaultA.
+//      vaultA allocPoints will increase. 
+//      rewards emitted frm t-5 to t-6 is allocated to userA and userB.
+abstract contract StateT06 is StateT05 {
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(6);
+
+        vm.prank(userB);
+        stakingPool.stakeTokens(vaultIdA, userB, userBPrinciple);
+    }
+}
+
+contract StateT06Test is StateT06 {
+
+    function testPoolT06() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+            From t=5 to t=6, Pool emits 1e18 rewards
+            There is only 1 vault in existence, which receives the full 1e18 of rewards
+             - rewardsAccruedPerToken = 1e18 / totalAllocPoints 
+                                      = 1e18 / userAPrinciple * multiplier
+                                      = 1e18 / (50e18 * 5)
+                                      = 4e15
+             - poolIndex should therefore be updated to 3.6666e16 + 4e15 = 4.0666e16 (index represents rewardsPerToken since inception)
+
+            Calculating index:
+            - poolIndex = (eps * timeDelta * precision / totalAllocPoints) + oldIndex
+             - eps: 1e18 
+             - oldIndex: 3.6666e16
+             - timeDelta: 1 seconds 
+             - totalAllocPoints: 240e18
+            
+            - poolIndex = (1e18 * 1 * 1e18 / 240e18 ) + 3.6666e16 = 4e15 +  3.6666e16 = 4.0666e16
+        */
+
+        assertEq(pool.totalAllocPoints, (userAPrinciple + userBPrinciple) * 5);     // additional nft, multiplier: 3 -> 5
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex/1e13, 4.066e16/1e13);                 //rounding: recurring decimal
+        assertEq(pool.poolLastUpdateTimeStamp, 6);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 4 ether);
+    }
+
+    function testVaultAT06() public {
+
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+        /**
+            t3: userA stakes tokens
+            t6: userB stakes tokens
+
+            rewards emitted from t5 to t6, allocated to user A
+             
+            rewards & fees: [begin to accrue from t3]
+             incomingRewards = 1e18
+             accCreatorFee = 1e18 * 0.1e18 / precision = 1e17
+             accNftStakingRewards = 1e18 * 0.1e18 / precision = 1e17
+            
+
+            totalAccRewards += incomingRewards = 1e18 + incomingRewards = 1e18 + 2.999e18 = 3.999e18
+             accCreatorFee = 1.999e17 + 1e17 = 2.999e17
+             accNftStakingRewards = 1.999e17 + 1e17 = 2.999e17
+
+            rewardsAccPerToken += incomingRewards - fees / stakedTokens = (1e18 - 2e17) * 1e18 / 50e18 = 1.6e16
+            rewardsAccPerToken = 3.199e16 + 1.6e16 = 4.799e16
+
+            vaultNftIndex 
+             nftIndex += (accTotalNFTFee / vault.stakedNfts)
+             nftIndex = (1e17 / 2) + 9.999e16
+                      = 1.499e17
+
+            !!!
+            poolIndex = vaultIndex = 4.6666e16 
+             -> recurring decimal, source of rounding issues within rewards, fee calcs and nftIndex.
+        */
+       
+
+        // nft section 
+        assertEq(vaultA.stakedNfts, 2); 
+        assertEq(vaultA.multiplier, 2 + 3);
+        assertEq(vaultA.accounting.vaultNftIndex/1e14, 1.499e17/1e14);      
+
+        // tokens
+        assertEq(vaultA.stakedTokens, (userAPrinciple + userBPrinciple)); 
+        assertEq(vaultA.allocPoints, (userAPrinciple + userBPrinciple) * vaultA.multiplier);
+        assertEq(vaultA.allocPoints, (userAPrinciple + userBPrinciple) * 5);
+
+        // token index
+        assertEq(vaultA.accounting.vaultIndex/1e13, 4.066e16/1e13); 
+        assertEq(vaultA.accounting.rewardsAccPerToken/1e13, 4.799e16/1e13);         // calculated val: 3.2e16
+
+        // rewards 
+        assertEq(vaultA.accounting.totalAccRewards/1e15, 3.999e18/1e15);                 
+        assertEq(vaultA.accounting.accNftStakingRewards/1e14, 2.999e17/1e14);            
+        assertEq(vaultA.accounting.accCreatorRewards/1e14, 2.999e17/1e14);                  
+        assertEq(vaultA.accounting.bonusBall, 1e18); 
+
+        assertEq(vaultA.accounting.claimedRewards, 0); 
+    }
+
+    function testUserBT06() public {
+
+        DataTypes.UserInfo memory userB = getUserInfoStruct(vaultIdA, userB);
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+
+        /**
+            userIndex = vault.accounting.rewardsAccPerToken
+
+            userNftIndex = vaultA.accounting.vaultNftIndex
+
+            accRewards = 0 || just staked tokens
+
+            accNftStakingRewards = nftFeeForPeriod / totalStakedNfts 
+                                 = 1e17 / 2
+                                 = 5e16
+        */
+
+        // nft section 
+        assertEq(userB.stakedNfts, 1); 
+        assertEq(userB.userNftIndex, vaultA.accounting.vaultNftIndex);
+
+        // tokens
+        assertEq(userB.stakedTokens, userBPrinciple);
+        assertEq(userB.userIndex, vaultA.accounting.rewardsAccPerToken);   
+
+        // rewards
+        assertEq(userB.accRewards, 0 ether);  
+        assertEq(userB.claimedRewards, 0);
+
+        assertEq(userB.accNftStakingRewards, 5e16);
+        assertEq(userB.claimedNftRewards, 0);
+
+        assertEq(userB.claimedCreatorRewards, 0);
+    }
+ 
+}
+
+
+//Note: t=07
+//      userC creates vaultC
+//      pool allocPoints will increase. 
+//      rewards emitted frm t6 to t7 is allocated to userA and userB.
+abstract contract StateT07 is StateT06 {
+
+    bytes32 public vaultIdC;
+
+    uint8 public saltC = 22;
+    uint256 public creatorFeeC = 0.10 * 1e18;
+    uint256 public nftFeeC = 0.10 * 1e18;
+
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(7);
+
+        vaultIdC = generateVaultId(saltC, userC);
+
+        // create vault
+        vm.prank(userC);       
+        stakingPool.createVault(userC, saltC, DataTypes.VaultDuration.THIRTY, creatorFeeC, nftFeeC);
+    }
+}
+
+contract StateT07Test is StateT07 {
+
+    function testPoolT07() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+            From t=6 to t=7, Pool emits 1e18 rewards
+            There is only 1 vault in existence, which receives the full 1e18 of rewards
+             - rewardsAccruedPerToken = 1e18 / totalAllocPoints 
+                                      = 1e18 / (userAPrinciple + userBPrinciple) * multiplier
+                                      = 1e18 / (80e18 * 5)
+                                      = 2.5e15
+             - poolIndex should therefore be updated to 4.0666e16 + 2.5e15 = 4.466e16 (index represents rewardsPerToken since inception)
+
+            Calculating index:
+            - poolIndex = (eps * timeDelta * precision / totalAllocPoints) + oldIndex
+             - eps: 1e18 
+             - oldIndex: 4.0666e16
+             - timeDelta: 1 seconds 
+             - totalAllocPoints: 400e18
+            
+            - poolIndex = (1e18 * 1 * 1e18 / 400e18 ) + 4.0666e16 = 2.5e15 + 4.0666e16 = 4.3166e16
+
+            TotalAllocPoints, updated:
+             vaultA + vaultC = [(userAPrinciple + userBPrinciple) * multiplier] + 100e18
+        */
+
+        assertEq(pool.totalAllocPoints, (userAPrinciple + userBPrinciple) * 5 + vaultBaseAllocPoints);    
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex/1e13, 4.316e16/1e13);                 //rounding: recurring decimal
+        assertEq(pool.poolLastUpdateTimeStamp, 7);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 5 ether);
+    }
+
+    function testVaultCT07() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+        /**
+            new vault.
+            everything 0.
+
+            multiper = 1.
+            vaultIndex == poolIndex
+
+        */
+       
+
+        // nft section 
+        assertEq(vaultC.stakedNfts, 0); 
+        assertEq(vaultC.multiplier, 1);
+        assertEq(vaultC.accounting.vaultNftIndex, 0);      
+
+        // tokens
+        assertEq(vaultC.stakedTokens, 0); 
+        assertEq(vaultC.allocPoints, (vaultBaseAllocPoints) * vaultC.multiplier);
+        
+        // token index
+        assertEq(vaultC.accounting.vaultIndex, pool.poolIndex); // must track poolIndex
+        assertEq(vaultC.accounting.rewardsAccPerToken, 0);         
+
+        // rewards 
+        assertEq(vaultC.accounting.totalAccRewards, 0);                 
+        assertEq(vaultC.accounting.accNftStakingRewards, 0);            
+        assertEq(vaultC.accounting.accCreatorRewards, 0);                  
+        assertEq(vaultC.accounting.bonusBall, 0); 
+
+        assertEq(vaultC.accounting.claimedRewards, 0); 
+    }
+
+    function testUserCT07() public {
+
+        DataTypes.UserInfo memory userC = getUserInfoStruct(vaultIdC, userC);
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+
+        /**
+            userIndex = vault.accounting.rewardsAccPerToken
+
+            userNftIndex = vaultA.accounting.vaultNftIndex
+
+            accRewards = 0 || just staked tokens
+
+            accNftStakingRewards = nftFeeForPeriod / totalStakedNfts 
+                                 = 1e17 / 2
+                                 = 5e16
+        */
+
+        // nft section 
+        assertEq(userC.stakedNfts, 0); 
+        assertEq(userC.userNftIndex, vaultC.accounting.vaultNftIndex);
+
+        // tokens
+        assertEq(userC.stakedTokens, 0);
+        assertEq(userC.userIndex, vaultC.accounting.rewardsAccPerToken);   
+
+        // rewards
+        assertEq(userC.accRewards, 0 ether);  
+        assertEq(userC.claimedRewards, 0);
+
+        assertEq(userC.accNftStakingRewards, 0);
+        assertEq(userC.claimedNftRewards, 0);
+
+        assertEq(userC.claimedCreatorRewards, 0);
+
+    }
+}
+
+
+//Note: t=08
+//      userC stakes NFT into vaultC
+//      vaultC has no tokens staked, therefore no rewards should be accrued to the NFT.
+//      rewards emitted frm t7 to t8 is proportionally split btw both vaults. 
+abstract contract StateT08 is StateT07 {
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(8);
+
+        // create vault
+        vm.prank(userC);       
+        stakingPool.stakeNfts(vaultIdC, userC, 1);
+    }
+}
+
+
+contract StateT08Test is StateT08 {
+    
+    function testPoolT08() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+            From t=7 to t=8, Pool emits 1e18 rewards
+            There are 2 vaults in existence; rewards are split.
+             totalAllocPoints = [(userAPrinciple + userBPrinciple) * multiplier] + vaultBaseAllocPoints
+                              = (80e18 * 5) + 100e18
+                              = 5e20
+
+             - rewardsAccruedPerToken = 1e18 / totalAllocPoints 
+                                      = 1e18 / 5e20
+                                      = 2e15
+
+             - poolIndex should therefore be updated to 4.316e16 + 2e15 = 4.516e16 (index represents rewardsPerToken since inception)
+
+            Calculating index:
+            - poolIndex = (eps * timeDelta * precision / totalAllocPoints) + oldIndex
+             - eps: 1e18 
+             - oldIndex: 4.316e16
+             - timeDelta: 1 seconds 
+             - totalAllocPoints: 500e18
+            
+            - poolIndex = (1e18 * 1 * 1e18 / 500e18 ) + 4.316e16 = 2e15 + 4.316e16 = 4.516e16
+
+            TotalAllocPoints, updated:
+             vaultA + vaultC = [(userAPrinciple + userBPrinciple) * multiplier] + 100e18
+        */
+
+        assertEq(pool.totalAllocPoints, (userAPrinciple + userBPrinciple) * 5 + vaultBaseAllocPoints);    
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex/1e13, 4.516e16/1e13);                 //rounding: recurring decimal 4.516e16
+        assertEq(pool.poolLastUpdateTimeStamp, 8);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 6 ether);
+    }
+
+    function testVaultCT08() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+        /**
+            rewards emitted from t7 to t8, allocated to both vaults.
+             vaultC's proportion = 100e18 / 5e20
+
+            rewards & fees: 
+             [perUnitTime]
+             incomingRewards = 1e18 * 100e18 / 5e20 = 2e17
+             accCreatorFee = 0
+             accNftStakingRewards = 0
+             
+             [total]
+             accCreatorFee = 0
+             accNftStakingRewards = 0
+             totalAccRewards =  2e17
+             bonusBall = 2e17
+            
+            rewards are booked as bonusBall as no tokens are staked.
+        */
+       
+
+        // nft section 
+        assertEq(vaultC.stakedNfts, 1); 
+        assertEq(vaultC.multiplier, 1 + 2);     //nft staked
+        assertEq(vaultC.accounting.vaultNftIndex, 0);      
+
+        // tokens
+        assertEq(vaultC.stakedTokens, 0); 
+        assertEq(vaultC.allocPoints, vaultBaseAllocPoints);
+        
+        // token index
+        assertEq(vaultC.accounting.vaultIndex, pool.poolIndex); // must track poolIndex
+        assertEq(vaultC.accounting.rewardsAccPerToken, 0);         
+
+        // rewards 
+        assertEq(vaultC.accounting.totalAccRewards, 2e17);                 
+        assertEq(vaultC.accounting.accNftStakingRewards, 0);            
+        assertEq(vaultC.accounting.accCreatorRewards,  0);                  
+        assertEq(vaultC.accounting.bonusBall,  2e17); 
+
+        assertEq(vaultC.accounting.claimedRewards, 0); 
+    }
+
+    function testUserCT08() public {
+
+        DataTypes.UserInfo memory userC = getUserInfoStruct(vaultIdC, userC);
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+
+        /**
+            userIndex = vault.accounting.rewardsAccPerToken
+
+            userNftIndex = vaultA.accounting.vaultNftIndex
+
+            accRewards = 0 || no tokens staked
+
+            accNftStakingRewards = nftFeeForPeriod / totalStakedNfts 
+                                 = 0
+                        
+        */
+
+        // nft section 
+        assertEq(userC.stakedNfts, 1); 
+        assertEq(userC.userNftIndex, vaultC.accounting.vaultNftIndex);
+
+        // tokens
+        assertEq(userC.stakedTokens, 0);
+        assertEq(userC.userIndex, vaultC.accounting.rewardsAccPerToken);   
+
+        // rewards
+        assertEq(userC.accRewards, 0 ether);  
+        assertEq(userC.claimedRewards, 0);
+
+        assertEq(userC.accNftStakingRewards, 0);
+        assertEq(userC.claimedNftRewards, 0);
+
+        assertEq(userC.claimedCreatorRewards, 0);
+
+    }
+}
+
+
+//Note: t=09
+//      userC stakes tokens into vaultC
+//      rewards emitted frm t8 to t9 is proportionally split btw both vaults. 
+//      creator/nft fees are not applied to rewards as no tokens have been staked in prior periods
+//      since the 1st token stake into the vault occurs, userC is the beneficary of the bonusBall payout
+//      bonusBall is booked to userC - accRewards
+abstract contract StateT09 is StateT08 {
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(9);
+
+        // create vault
+        vm.prank(userC);       
+        stakingPool.stakeTokens(vaultIdC, userC, userCPrinciple);
+    }
+}
+
+contract StateT09Test is StateT09 {
+
+    function testPoolT09() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+            From t=8 to t=9, Pool emits 1e18 rewards
+            There are 2 vaults in existence; rewards are split.
+             totalAllocPoints = [(userAPrinciple + userBPrinciple) * multiplier] + vaultBaseAllocPoints
+                              = (80e18 * 5) + 100e18
+                              = 5e20
+
+             - rewardsAccruedPerAllocPoint = 1e18 / totalAllocPoints 
+                                           = 1e18 / 5e20
+                                           = 2e15
+
+             - poolIndex should therefore be updated to 4.516e16 + 2e15 = 4.716e16 (index represents rewardsPerToken since inception)
+
+            Calculating index:
+            - poolIndex = (eps * timeDelta * precision / totalAllocPoints) + oldIndex
+             - eps: 1e18 
+             - oldIndex: 4.516e16
+             - timeDelta: 1 seconds 
+             - totalAllocPoints: 500e18
+            
+            - poolIndex = (1e18 * 1 * 1e18 / 500e18 ) + 4.516e16 = 2e15 + 4.516e16 = 4.716e16
+
+            TotalAllocPoints, updated:
+             vaultA + vaultC = [(userAPrinciple + userBPrinciple) * multiplier] + 100e18
+        */
+
+        // vaultC multiplier: 3, from prior Nft staked
+        assertEq(pool.totalAllocPoints, ((userAPrinciple + userBPrinciple) * 5) + (userCPrinciple * 3));    
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex/1e13, 4.716e16/1e13);                 //rounding: recurring decimal 4.516e16
+        assertEq(pool.poolLastUpdateTimeStamp, 9);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 7 ether);
+    }
+
+    function testVaultCT09() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+        /**
+            rewards emitted from t8 to t9, allocated to both vaults.
+             vaultC's proportion = 100e18 / 5e20
+
+            rewards & fees: **no tokens, so no fees**
+             [perUnitTime]
+             incomingRewards = 1e18 * 100e18 / 5e20 = 2e17
+             accCreatorFee = 0
+             accNftStakingRewards = 0
+             
+             [total]
+             accCreatorFee = 0
+             accNftStakingRewards = 0
+             totalAccRewards =  2e17 + 2e17 = 4e17
+             bonusBall = 2e17 + 2e17 = 4e17    
+              * rewards are booked as bonusBall as no tokens are staked.
+            
+            nftIndex = 0; 
+             nftIndex starts tracking, once tokens are staked.
+             as nftFee is only levied on vaults with tokens staked.
+
+        */
+       
+
+        // nft section 
+        assertEq(vaultC.stakedNfts, 1); 
+        assertEq(vaultC.multiplier, 1 + 2);                      // nft staked
+        assertEq(vaultC.accounting.vaultNftIndex, 0);            // nftIndex only increments once there are stakedTokens    
+
+        // tokens
+        assertEq(vaultC.stakedTokens, userCPrinciple); 
+        assertEq(vaultC.allocPoints, (userCPrinciple * 3));
+        
+        // token index
+        assertEq(vaultC.accounting.vaultIndex, pool.poolIndex); // must track poolIndex
+        assertEq(vaultC.accounting.rewardsAccPerToken, 0);         
+
+        // rewards 
+        assertEq(vaultC.accounting.totalAccRewards, 4e17);                 
+        assertEq(vaultC.accounting.accNftStakingRewards, 0);            
+        assertEq(vaultC.accounting.accCreatorRewards,  0);                  
+        assertEq(vaultC.accounting.bonusBall,  4e17); 
+
+        assertEq(vaultC.accounting.claimedRewards, 0); 
+    }
+    
+    function testUserCT09() public {
+
+        DataTypes.UserInfo memory userC = getUserInfoStruct(vaultIdC, userC);
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+
+        /**
+            userIndex = vault.accounting.rewardsAccPerToken
+
+            userNftIndex = vaultA.accounting.vaultNftIndex
+
+            accRewards = 0 || no tokens staked
+
+            accNftStakingRewards = nftFeeForPeriod / totalStakedNfts 
+                                 = 0
+                        
+        */
+
+        // nft section 
+        assertEq(userC.stakedNfts, 1); 
+        assertEq(userC.userNftIndex, vaultC.accounting.vaultNftIndex);
+
+        // tokens
+        assertEq(userC.stakedTokens, userCPrinciple);
+        assertEq(userC.userIndex, vaultC.accounting.rewardsAccPerToken);   
+
+        // rewards
+        assertEq(userC.accRewards, 4e17);  
+        assertEq(userC.claimedRewards, 0);
+
+        assertEq(userC.accNftStakingRewards, 0);
+        assertEq(userC.claimedNftRewards, 0);
+
+        assertEq(userC.claimedCreatorRewards, 0);
+    }   
+}
+
+
+//Note: t=10
+//      no user action is taken.
+//      vaultC state is updated to reflect state at t10. 
+//      now that the vault contains tokens, allocPOints should be udpated.
+//      we check if the fees and rewards have been correctly calculated.
+//      rewards emitted frm t9 to t10 is proportionally split btw both vaults. 
+abstract contract StateT10 is StateT09 {
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.warp(10);
+
+        vm.prank(userC);       
+        stakingPool.updateVault(vaultIdC);
+    }
+}
+
+
+contract StateT10Test is StateT10 {
+
+    function testPoolT10() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+            From t=9 to t=10, Pool emits 1e18 rewards
+            There are 2 vaults in existence; rewards are split.
+             totalAllocPoints = [(userAPrinciple + userBPrinciple) * multiplier] + [userCPrincple * multiplier]
+                              = (80e18 * 5) + (80e18 * 3)
+                              = 6.4e20
+
+             - rewardsAccruedPerAllocPoint = 1e18 / totalAllocPoints 
+                                           = 1e18 / 6.4e20
+                                           = 1.562e15
+
+             - poolIndex should therefore be updated to 4.716e16 + 1.562e15 = 4.872e16 (index represents rewardsPerToken since inception)
+
+            Calculating index:
+            - poolIndex = (eps * timeDelta * precision / totalAllocPoints) + oldIndex
+             - eps: 1e18 
+             - oldIndex: 4.716e16
+             - timeDelta: 1 seconds 
+             - totalAllocPoints: 6.4e20
+            
+            - poolIndex = (1e18 * 1 * 1e18 / 6.4e20 ) + 4.716e16 = 1.562e15 + 4.516e16 = 4.872e16 
+
+        */
+
+        // vaultC multiplier: 3, from prior Nft staked
+        assertEq(pool.totalAllocPoints, ((userAPrinciple + userBPrinciple) * 5) + (userCPrinciple * 3));    
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex/1e13, 4.872e16/1e13);                 //rounding: recurring decimal 4.516e16
+        assertEq(pool.poolLastUpdateTimeStamp, 10);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 8 ether);
+    }
+
+    function testVaultCT10() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+        /**
+            rewards emitted from t9 to t10, allocated to both vaults.
+             vaultC's proportion = (80e18 * 3) / 6.4e20
+                                 = 2.4e20 / 6.4e20
+
+            rewards & fees: 
+             [perUnitTime]
+             incomingRewards = 1e18 * 2.4e20 / 6.4e20 = 3.75e17
+             accCreatorFee = 3.75e17 * 0.1 = 3.75e16
+             accNftStakingRewards = 3.75e17 * 0.1 = 3.75e16
+             
+             [total]
+             accCreatorFee = 3.75e16
+             accNftStakingRewards = 3.75e16
+             totalAccRewards =  4e17 + 3.75e17 = 7.75e17
+             bonusBall = 2e17 + 2e17 = 4e17    
+              * rewards are booked as bonusBall as no tokens are staked.
+            
+            rewardsAccPerToken += incomingRewards * (1 - feeFactor) / stakedTokens = (3.75e17 * 0.8) * 1e18 / 80e18 = 3.75e15
+             rewardsAccPerToken = 3.75e15
+
+            vaultNftIndex [t9-t10]: 
+             nftIndex += (3.75e16 / vault.stakedNfts)
+             nftIndex = (3.75e16 / 1)
+                      = 3.75e16
+             
+             ** nft staked at t8, but tokens only staked at t9
+
+        */
+       
+
+        // nft section 
+        assertEq(vaultC.stakedNfts, 1); 
+        assertEq(vaultC.multiplier, 1 + 2);                            // nft staked
+        assertEq(vaultC.accounting.vaultNftIndex, 3.75e16);            // nftIndex only increments once there are stakedTokens    
+
+        // tokens
+        assertEq(vaultC.stakedTokens, userCPrinciple); 
+        assertEq(vaultC.allocPoints, (userCPrinciple * 3));
+        
+        // token index
+        assertEq(vaultC.accounting.vaultIndex, pool.poolIndex);         // must track poolIndex
+        assertEq(vaultC.accounting.rewardsAccPerToken, 3.75e15);         
+
+        // rewards 
+        assertEq(vaultC.accounting.totalAccRewards, 7.75e17);                 
+        assertEq(vaultC.accounting.accNftStakingRewards, 3.75e16);            
+        assertEq(vaultC.accounting.accCreatorRewards,  3.75e16);                  
+        assertEq(vaultC.accounting.bonusBall,  4e17); 
+
+        assertEq(vaultC.accounting.claimedRewards, 0); 
+    }
+    
+}
+
+//Note: t=2_592_002 | 2 + 30 days
+//      vaultA ends
+//      userA and userB claim all rewards, fees and unstake their assets.
+//      poolAllocPOints should be decremented; reflecting only vaultC AllocPoints
+abstract contract StateVaultAEndTime is StateT10 {
+
+    function setUp() public virtual override {
+        super.setUp();
+        
+        uint256 vaultAEnds = 2 + 30 days;
+        vm.warp(vaultAEnds);
+
+        stakingPool.unstakeAll(vaultIdA, userA);
+        stakingPool.unstakeAll(vaultIdA, userB);
+
+        stakingPool.claimRewards(vaultIdA, userA);
+        stakingPool.claimRewards(vaultIdA, userB);
+
+        stakingPool.claimFees(vaultIdA, userB);
+
+        stakingPool.claimFees(vaultIdA, userA);
+
+    }
+}
+
+contract StateVaultAEndTimeTest is StateVaultAEndTime {
+
+    function testPoolVaultAEndTime() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        /**
+            From t=10 to t=2_592_002, Pool emits 1e18 * (2_592_002 - 10) rewards
+                1e18 * (2_592_002 - 10) = 2.591992e24
+            There are 2 vaults in existence; rewards are split.
+             totalAllocPoints = [(userAPrinciple + userBPrinciple) * multiplier] + [userCPrincple * multiplier]
+                              = (80e18 * 5) + (80e18 * 3)
+                              = 6.4e20
+
+             - rewardsAccruedPerAllocPoint = 2.591e24 / totalAllocPoints 
+                                           = 2.591992e24 / 6.4e20 
+                                           = 4.0499875e21
+
+             - poolIndex should therefore be updated to 4.872e16 + 4.0499875e21 = 4.05003622e21 (index represents rewardsPerToken since inception)
+                                                                                ~ 4.050e21
+            Calculating index:
+            - poolIndex = (eps * timeDelta * precision / totalAllocPoints) + oldIndex
+             - eps: 1e18 
+             - oldIndex: 4.872e16
+             - timeDelta: 2591992 seconds 
+             - totalAllocPoints: 6.4e20
+            
+            - poolIndex = (1e18 * 2591992 * 1e18 / 6.4e20 ) + 4.872e16 
+                        = 4.0499875e21 + 4.872e16  
+                        = 4.05003266e21
+                        ~ 4.050e21
+
+        */
+
+        // vaultC multiplier: 3, from prior Nft staked
+        assertEq(pool.totalAllocPoints, (userCPrinciple * 3));    
+        assertEq(pool.emissisonPerSecond, 1 ether);
+
+        assertEq(pool.poolIndex/1e18, 4.050e21/1e18);                
+        assertEq(pool.poolLastUpdateTimeStamp, 2_592_002);  
+
+        assertEq(pool.totalPoolRewardsEmitted, 2_592_000 ether);
+    }
+
+    function testVaultAHasEnded() public {
+
+        DataTypes.PoolAccounting memory pool = getPoolStruct();
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+        /**
+            t3: userA stakes tokens 
+            t6: userB stakes tokens
+            
+            Total rewards accrued by vaultA
+             vaultA lifespan: [t2 - t2_592_002]
+             
+             t2 - t3: 1e18 (bonusBall)
+             t3 - t7: 4e18 (userA stakes at t3)         
+             t7 - t8: 1e18 * 400e18 / 500e18 = 8e17         (vaultC created at t7 | allocPoints changes)
+             t8 - t9: 1e18 * 400e18 / 500e18 = 8e17         (userC stakes nft at t8 | but no tokens - so no impact on allocPOints)
+             t9 - t10: 1e18 * 400e18 / 6.4e20 = 6.25e17     (userC stakes tokens at t9 | allocPoints changes)
+             t10 - t2_592_002: 2.591992e24 * 400e18 / 6.4e20 = 1.619995e24
+
+             totalRewards = 1e18 + 4e18 + 8e17+ 8e17 + 6.25e17 + 1.619995e24
+                          = 1.620002225e24
+                          ~ 1.620e24
+
+             accCreatorFee = 1.620002225e24 * 0.1 = 1.620002225e23 ~ 1.620e23
+             accNftStakingRewards = 1.620002225e24 * 0.1 = 1.620002225e23 ~ 1.620e23
+
+            rewardsAccPerToken
+             [t6 - t2_592_002]
+             incomingRewards: 1e18 + 8e17 + 8e17 + 6.25e17 + 1.619995e24
+                            = 1.619998225e24
+             incomingRewardsLessOfFees = 1.619998225e24 * 0.8 
+                                       = 1.29599858e24
+            
+             rewardsAccPerToken =  1.29599858e24 / 80e18
+                                = 1.619998225e22
+             [t3 - t6]
+             rewardsAccPerToken =  1.6e16    
+            
+            rewardsAccPerToken = 1.6e16 + 1.619998225e22 = 1.619999825e22 ~ 1.620e22
+
+
+            vaultNftIndex
+             [t6 - t2_592_002]
+             accNftStakingRewards = 1.619998225e24 * 0.1
+                                  = 1.619998225e23
+             nftIndex = (accTotalNFTFee / vault.stakedNfts)
+             nftIndex = (1.619998225e23 / 2) 
+                      = 8.099991125e22
+             
+             t6: nftIndex = 1.499e17
+             finaL: nftIndex = 1.499e17 + 8.099991125e22
+                             = 8.100006115e22
+                             ~ 8.100e22
+
+        */
+       
+
+        // nft section 
+        assertEq(vaultA.stakedNfts, 0); 
+        assertEq(vaultA.multiplier, 5);
+        assertEq(vaultA.accounting.vaultNftIndex/1e19, 8.100e22/1e19);      
+
+        // tokens
+        assertEq(vaultA.stakedTokens, 0); 
+        assertEq(vaultA.allocPoints, 0);
+        
+        // token index
+        assertEq(vaultA.accounting.vaultIndex, pool.poolIndex); 
+        assertEq(vaultA.accounting.rewardsAccPerToken/1e19, 1.620e22/1e19);         
+
+        // rewards 
+        assertEq(vaultA.accounting.totalAccRewards/1e21, 1.620e24/1e21);                 
+        assertEq(vaultA.accounting.accNftStakingRewards/1e20, 1.620e23/1e20);            
+        assertEq(vaultA.accounting.accCreatorRewards/1e20, 1.620e23/1e20);                  
+        assertEq(vaultA.accounting.bonusBall, 1e18); 
+
+        assertEq(vaultA.accounting.claimedRewards/1e21, 1.620e24/1e21);        
+       
+    }
+
+    function testUserAVaultAHasEnded() public {
+
+        //user nft incentive" 1e17
+    }
+
+    function testUserBT06() public {
+
+        DataTypes.UserInfo memory userB = getUserInfoStruct(vaultIdA, userB);
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+
+        /** UserB is NOT a beneficiary of either bonusball of 1st nft staking incentive
+
+            userIndex = vault.accounting.rewardsAccPerToken
+            userNftIndex = vaultA.accounting.vaultNftIndex
+
+            rewardsAccPerToken
+             [t6 - t2_592_002]
+             rewardsAccPerToken: 1e18 + 8e17 + 8e17 + 6.25e17 + 1.619995e24
+                               = 1.619998225e22
+             rewardsLessOfFees = 1.619998225e22 * 0.8 
+                               = 1.29599858e22
+            
+            accRewards = rewardsLessOfFees * userBPrinciple
+                       = 1.619998225e22 * 30
+                       = 4.859994675e23
+                       ~ 4.859e23
+
+            accNftStakingRewards 
+             [t6 - t2_592_002]
+             accNftStakingRewards = nftFeeForPeriod / totalStakedNfts 
+                                 = 1.619998225e23 / 2
+                                 = 8.099991125e22
+             [t5 - t6]
+             accNftStakingRewards = 5e16
+            
+            accNftStakingRewards = 5e16 + 8.099991125e22 = 8.099996125e22 ~ 8.099e22
+
+        */
+
+        // nft section 
+        assertEq(userB.stakedNfts, 0); 
+        assertEq(userB.userNftIndex, vaultA.accounting.vaultNftIndex);
+
+        // tokens
+        assertEq(userB.stakedTokens, 0);
+        assertEq(userB.userIndex, vaultA.accounting.rewardsAccPerToken);   
+
+        // rewards
+        assertEq(userB.accRewards/1e20, 4.859e23/1e20);             
+        assertEq(userB.claimedRewards/1e20, 4.859e23/1e20);         
+
+        assertEq(userB.accNftStakingRewards/1e19, 8.099e22/1e19);   
+        assertEq(userB.claimedNftRewards/1e19, 8.099e22/1e19);         
+
+        assertEq(userB.claimedCreatorRewards, 0);
+    }
+}
+
+/**
+            accNftStakingRewards = 1e17 + [1e18 * 0.2]                 | 1st NFT staker incentive + nft fee
+                        = 3e17
+*/
 

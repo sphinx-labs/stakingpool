@@ -243,14 +243,16 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         vault.stakedNfts += amount;
         vault.multiplier += amount * nftMultiplier;
 
-        //calc. new alloc points
-        uint256 newAllocPoints = vault.stakedTokens * vault.multiplier;
-        uint256 deltaAllocPoints = newAllocPoints - oldAllocPoints;
-
-        // update allocPoints
-        vault.allocPoints += deltaAllocPoints;
-        pool.totalAllocPoints += deltaAllocPoints;
-
+        //calc. new alloc points | there is only imapct if vault has prior stakedTokens
+        if(vault.stakedTokens > 0) {
+            uint256 newAllocPoints = vault.stakedTokens * vault.multiplier;
+            uint256 deltaAllocPoints = newAllocPoints - oldAllocPoints;
+            
+            // update allocPoints
+            vault.allocPoints += deltaAllocPoints;
+            pool.totalAllocPoints += deltaAllocPoints;
+        }
+        
         // update storage
         vaults[vaultId] = vault;
         users[onBehalfOf][vaultId] = userInfo;
@@ -310,7 +312,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         }
         
         // collect NFT fees
-        if(userInfo.stakedNfts > 0){
+        if(userInfo.accNftStakingRewards > 0){    
             uint256 unclaimedNftRewards = (userInfo.accNftStakingRewards - userInfo.claimedNftRewards);
             totalUnclaimedRewards += unclaimedNftRewards;
             
@@ -351,26 +353,29 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         //get user balances
         uint256 stakedNfts = userInfo.stakedNfts;
         uint256 stakedTokens = userInfo.stakedTokens;
-        uint256 allocPoints = stakedTokens * vault.multiplier;
+
+        // update allocPoints
+        pool.totalAllocPoints -= vault.allocPoints;       // update storage: pool
+        vault.allocPoints = 0;
+
+        //note:  reset multiplier?
+        // vault.multiplier = 1;
 
         //update balances: user + vault
         if(stakedNfts > 0){
-            vault.stakedNfts -= stakedNfts;
-            userInfo.stakedNfts -= stakedNfts;
             
+            vault.stakedNfts -= userInfo.stakedNfts;
+            userInfo.stakedNfts = 0;
+
             //_burn NFT chips?
             emit UnstakedMocaNft(onBehalfOf, vaultId, stakedNfts);       
         }
 
         if(stakedTokens > 0){
             // update stakedTokens
-            vault.stakedTokens -= stakedTokens;
-            userInfo.stakedTokens -= stakedTokens;
+            vault.stakedTokens -= userInfo.stakedTokens;
+            userInfo.stakedTokens = 0;
             
-            // update allocPoints
-            vault.allocPoints -= allocPoints;
-            pool.totalAllocPoints -= allocPoints;       // update storage: pool
-
             // burn stkMOCA
             _burn(onBehalfOf, stakedTokens);
             emit UnstakedMoca(onBehalfOf, vaultId, stakedTokens);       
