@@ -102,22 +102,19 @@ abstract contract StateZero is Test {
         // deploy contracts
         mocaToken = new MocaToken("MocaToken", "MOCA");
         nftRegistry = new NftRegistry("bridgedMocaNft", "bMocaNft");
-
-        //IERC20 rewardToken, address moneyManager, address admin
+        
+        //setup vault
         rewardsVault = new RewardsVault(IERC20(mocaToken), owner, owner);
-        // rewards for emission
-        mocaToken.mint(address(rewardsVault), rewards);  
-
-        // modify rewardsVault storage
-        stdstore
-            .target(address(rewardsVault))
-            .sig(rewardsVault.totalVaultRewards.selector) 
-            .checked_write(rewards);
-
+        mocaToken.mint(owner, rewards);  
+        mocaToken.approve(address(rewardsVault), rewards); 
+        rewardsVault.deposit(owner, rewards);
 
         // IERC20 stakedToken, IERC20 lockedNftToken, IERC20 rewardToken, address realmPoints, address rewardsVault, uint128 startTime_, uint128 duration, uint128 rewards, 
         // string memory name, string memory symbol, address owner
         stakingPool = new Pool(IERC20(mocaToken), IERC20(nftRegistry), IERC20(mocaToken), address(0), address(rewardsVault), startTime, duration, rewards, "stkMOCA", "stkMOCA", owner);
+
+        rewardsVault.setPool(address(stakingPool));
+
 
         //mint tokens to users
         mocaToken.mint(userA, userAPrinciple);

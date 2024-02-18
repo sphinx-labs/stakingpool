@@ -6,5 +6,6 @@ import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC
 interface IRewardsVault {
 
     function totalVaultRewards() external view returns(uint256);
+    function payRewards(address to, uint256 amount) external;
     
 }

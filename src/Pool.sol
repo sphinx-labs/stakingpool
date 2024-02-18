@@ -22,8 +22,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     IERC20 public STAKED_TOKEN;  
     IERC20 public LOCKED_NFT_TOKEN;  
 
+    IRewardsVault public REWARDS_VAULT;
     IERC20 public REWARD_TOKEN;
-    address public REWARDS_VAULT;
+
     address public REALM_POINTS;
 
     // multipliers
@@ -43,6 +44,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     // Pool Accounting
     DataTypes.PoolAccounting public pool;
  
+//-------------------------------Events-------------------------------------------
 
     // EVENTS
     event DistributionUpdated(uint256 indexed newPoolEPS, uint256 indexed newEndTime);
@@ -96,7 +98,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         REWARD_TOKEN = rewardToken;
 
         REALM_POINTS = realmPoints;
-        REWARDS_VAULT = rewardsVault;
+        REWARDS_VAULT = IRewardsVault(rewardsVault);
 
         DataTypes.PoolAccounting memory pool_;
 
@@ -110,7 +112,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
         // reward vault must hold necessary tokens
         pool_.totalPoolRewards = rewards;
-        require(rewards <= IRewardsVault(REWARDS_VAULT).totalVaultRewards(), "reward amount > totalVaultRewards");
+        require(rewards <= REWARDS_VAULT.totalVaultRewards(), "reward amount > totalVaultRewards");
 
         // update storage
         pool = pool_;
@@ -290,7 +292,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         emit RewardsClaimed(vaultId, onBehalfOf, totalUnclaimedRewards);
 
         // transfer rewards to user, from rewardsVault
-        REWARD_TOKEN.safeTransferFrom(REWARDS_VAULT, onBehalfOf, totalUnclaimedRewards);
+        REWARDS_VAULT.payRewards(onBehalfOf, totalUnclaimedRewards);
     }
 
     function claimFees(bytes32 vaultId, address onBehalfOf) external whenStarted whenNotPaused {
@@ -335,7 +337,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         users[onBehalfOf][vaultId] = userInfo;
 
         // transfer rewards to user, from rewardsVault
-        REWARD_TOKEN.safeTransferFrom(REWARDS_VAULT, onBehalfOf, totalUnclaimedRewards);
+        REWARDS_VAULT.payRewards(onBehalfOf, totalUnclaimedRewards);
     } 
 
     function unstakeAll(bytes32 vaultId, address onBehalfOf) external whenStarted whenNotPaused {

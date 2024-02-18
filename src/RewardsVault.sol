@@ -13,6 +13,7 @@ import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessContr
 contract RewardsVault is AccessControl {
     using SafeERC20 for IERC20;
 
+    address public pool;
     uint256 public totalVaultRewards;
     IERC20 public immutable REWARD_TOKEN;
     
@@ -24,13 +25,14 @@ contract RewardsVault is AccessControl {
     event Deposit(address indexed from, uint256 amount);
     event Withdraw(address indexed to, uint256 amount);
     event Recovered(address indexed token, address indexed target, uint256 amount);
-    
+    event PoolSet(address indexed oldPool, address indexed newPool);
+
     constructor(IERC20 rewardToken, address moneyManager, address admin) {
 
         REWARD_TOKEN = rewardToken;
+
         _grantRole(MONEY_MANAGER_ROLE, moneyManager);
         _grantRole(ADMIN_ROLE, admin);
-
     }
 
     /**
@@ -39,9 +41,13 @@ contract RewardsVault is AccessControl {
      * @param amount Rewards amount (in wei)
      */
     function deposit(address from, uint256 amount) onlyRole(MONEY_MANAGER_ROLE) external {
-                
-        REWARD_TOKEN.safeTransferFrom(from, address(this), amount);
+        require(from != address(0), "Invalid address");
+        require(amount > 0, "Invalid amount");
+
+        totalVaultRewards += amount;
         emit Deposit(from, amount);
+
+        REWARD_TOKEN.safeTransferFrom(from, address(this), amount);
     }
 
     /**
@@ -50,10 +56,37 @@ contract RewardsVault is AccessControl {
      * @param amount Rewards amount (in wei)
      */
     function withdraw(address to, uint256 amount) onlyRole(MONEY_MANAGER_ROLE) external {
-        REWARD_TOKEN.safeTransfer(to, amount);
+        require(to != address(0), "Invalid address");
+        require(amount > 0, "Invalid amount");
+
+        totalVaultRewards -= amount;
         emit Withdraw(to, amount);
+
+        REWARD_TOKEN.safeTransfer(to, amount);
+
     }
 
+    /**
+     * @notice Called by Staking Pool contract to transfer rewards to users
+     * @param to Address to which rewards are to be paid out
+     * @param amount Reward amount (in wei)
+     */
+    function payRewards(address to, uint256 amount) external {
+        require(msg.sender == pool, "Only Pool");
+
+        REWARD_TOKEN.safeTransfer(to, amount);
+    }
+
+    /**
+     * @notice Set the address of the staking pool
+     * @param newPool Address of pool contract
+     */
+    function setPool(address newPool) onlyRole(ADMIN_ROLE) external {
+        require(newPool != address(0), "Invalid address");
+
+        emit PoolSet(pool, newPool);
+        pool = newPool;
+    }
         
     /*//////////////////////////////////////////////////////////////
                                 RECOVER
