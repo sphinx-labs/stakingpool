@@ -161,17 +161,11 @@ contract Pool is ERC20, Pausable, Ownable2Step {
             vault.accounting.totalNftFeeFactor = nftFee;
             vault.accounting.creatorFeeFactor = creatorFee;
 
-
-        //build userInfo - maybe no need
-        DataTypes.UserInfo memory userInfo; 
-            userInfo.vaultId = vaultId;
-
         // update storage
         pool = pool_;
         vaults[vaultId] = vault;
-        users[onBehalfOf][vaultId] = userInfo;
         
-        emit VaultCreated(msg.sender, vaultId, vaultEndTime, duration); //emit totaLAllocPpoints updated?
+        emit VaultCreated(onBehalfOf, vaultId, vaultEndTime, duration); //emit totaLAllocPpoints updated?
     }  
 
     function stakeTokens(bytes32 vaultId, address onBehalfOf, uint256 amount) external whenStarted whenNotPaused {

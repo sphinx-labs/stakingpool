@@ -194,7 +194,7 @@ abstract contract StateZero is Test {
     function getUserInfoStruct(bytes32 vaultId, address user) public returns (DataTypes.UserInfo memory){
         (
             //bytes32 vaultId_, 
-            ,uint256 stakedNfts, uint256 stakedTokens, 
+            uint256 stakedNfts, uint256 stakedTokens, 
             uint256 userIndex, uint256 userNftIndex,
             uint256 accStakingRewards, uint256 claimedStakingRewards,
             uint256 accNftStakingRewards, uint256 claimedNftRewards,

@@ -76,7 +76,6 @@ contract DataTypes {
     //////////////////////////////////////////////////////////////*/
 
     struct UserInfo {
-        bytes32 vaultId;    //note: is not assigned. drop?
 
         // staked assets
         uint256 stakedNfts;            
