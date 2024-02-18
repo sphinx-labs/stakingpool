@@ -125,7 +125,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
     ///@dev creates empty vault
     function createVault(address onBehalfOf, uint8 salt, DataTypes.VaultDuration duration, uint256 creatorFee, uint256 nftFee) external whenStarted whenNotPaused {
-        //rp check
+        //note: rp check
 
         // invalid selection
         if(uint8(duration) == 0) revert Errors.InvalidVaultPeriod();      
@@ -425,7 +425,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
 
         // update Fee factor
+        vault.accounting.totalFeeFactor -= vault.accounting.creatorFeeFactor - newCreatorFeeFactor;
         vault.accounting.creatorFeeFactor = newCreatorFeeFactor;
+        
 
         // update storage
         vaults[vaultId] = vault_;
@@ -448,11 +450,12 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         if(vault.creator != onBehalfOf) revert Errors.UserIsNotVaultCreator(vaultId, onBehalfOf);
         
         // incoming NftFeeFactor must be more than current
-        if(newNftFeeFactor <= vault.accounting.totalNftFeeFactor) revert Errors.CreatorFeeCanOnlyBeDecreased(vaultId);
+        if(newNftFeeFactor <= vault.accounting.totalNftFeeFactor) revert Errors.NftFeeCanOnlyBeIncreased(vaultId);
 
         emit NftFeeFactorUpdated(vaultId, vault.accounting.creatorFeeFactor, newNftFeeFactor);
         
         // update Fee factor
+        vault.accounting.totalFeeFactor += newNftFeeFactor - newCreatorFeeFactor;
         vault.accounting.totalNftFeeFactor = newNftFeeFactor;
 
         // update storage

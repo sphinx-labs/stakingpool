@@ -75,3 +75,6 @@
 
 - test vault60, vault90 
 -- test w/ nft and without
+
+
+test RP contract call

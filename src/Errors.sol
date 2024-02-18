@@ -30,5 +30,6 @@ library Errors {
     error InvalidEmissionParameters();
 
     error CreatorFeeCanOnlyBeDecreased(bytes32 vaultId) ;
+    error NftFeeCanOnlyBeIncreased(bytes32 vaultId) ;
 
 }
