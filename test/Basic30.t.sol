@@ -196,7 +196,7 @@ abstract contract StateZero is Test {
             //bytes32 vaultId_, 
             ,uint256 stakedNfts, uint256 stakedTokens, 
             uint256 userIndex, uint256 userNftIndex,
-            uint256 accRewards, uint256 claimedRewards,
+            uint256 accStakingRewards, uint256 claimedStakingRewards,
             uint256 accNftStakingRewards, uint256 claimedNftRewards,
             uint256 claimedCreatorRewards
 
@@ -213,8 +213,8 @@ abstract contract StateZero is Test {
             userInfo.userIndex = userIndex;
             userInfo.userNftIndex = userNftIndex;
 
-            userInfo.accRewards = accRewards;
-            userInfo.claimedRewards = claimedRewards;
+            userInfo.accStakingRewards = accStakingRewards;
+            userInfo.claimedStakingRewards = claimedStakingRewards;
 
             userInfo.accNftStakingRewards = accNftStakingRewards;
             userInfo.claimedNftRewards = claimedNftRewards;
@@ -507,8 +507,8 @@ contract StateT03Test is StateT03 {
         assertEq(userA.userIndex, 0);   
         assertEq(userA.userNftIndex, 0);
 
-        assertEq(userA.accRewards, 1 ether);  // 1e18: bonusBall received
-        assertEq(userA.claimedRewards, 0);
+        assertEq(userA.accStakingRewards, 1 ether);  // 1e18: bonusBall received
+        assertEq(userA.claimedStakingRewards, 0);
 
         assertEq(userA.accNftStakingRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
@@ -635,8 +635,8 @@ contract StateT04Test is StateT04 {
         assertEq(userB.userIndex, 1.6e16);   
         assertEq(userB.userNftIndex, 0);
 
-        assertEq(userB.accRewards, 0 ether);  
-        assertEq(userB.claimedRewards, 0);
+        assertEq(userB.accStakingRewards, 0 ether);  
+        assertEq(userB.claimedStakingRewards, 0);
 
         assertEq(userB.accNftStakingRewards, 0);
         assertEq(userB.claimedNftRewards, 0);
@@ -764,8 +764,8 @@ contract StateT05Test is StateT05 {
         assertEq(userA.userIndex, vaultA.accounting.rewardsAccPerToken);  
         assertEq(userA.userNftIndex, 0);
 
-        assertEq(userA.accRewards, 2.3e18);  // 1e18: bonusBall received
-        assertEq(userA.claimedRewards, 2.3e18);
+        assertEq(userA.accStakingRewards, 2.3e18);  // 1e18: bonusBall received
+        assertEq(userA.claimedStakingRewards, 2.3e18);
 
         assertEq(userA.accNftStakingRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
@@ -792,8 +792,8 @@ contract StateT05Test is StateT05 {
         assertEq(userB.userIndex, vaultA.accounting.rewardsAccPerToken); 
         assertEq(userB.userNftIndex, 0);
 
-        assertEq(userB.accRewards, 3e17); 
-        assertEq(userB.claimedRewards, 3e17);
+        assertEq(userB.accStakingRewards, 3e17); 
+        assertEq(userB.claimedStakingRewards, 3e17);
 
         assertEq(userB.accNftStakingRewards, 0);
         assertEq(userB.claimedNftRewards, 0);
@@ -929,8 +929,8 @@ contract StateT06Test is StateT06 {
         assertEq(userA.userIndex,  vaultA.accounting.rewardsAccPerToken);                
         assertEq(userA.userNftIndex, 0);
 
-        assertEq(userA.accRewards, 2.5e18 + 3e17);          // 1e18: bonusBall received,  3e17: creatorFee
-        assertEq(userA.claimedRewards, 2.3e18);      
+        assertEq(userA.accStakingRewards, 2.5e18 + 3e17);          // 1e18: bonusBall received,  3e17: creatorFee
+        assertEq(userA.claimedStakingRewards, 2.3e18);      
 
         assertEq(userA.accNftStakingRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
@@ -1146,8 +1146,8 @@ contract StateT08Test is StateT08 {
         assertEq(userC.userIndex,  vaultC.accounting.rewardsAccPerToken); 
         assertEq(userC.userNftIndex, 0);
 
-        assertEq(userC.accRewards/1e14, 5.555e17/1e14);          // bonusBall received
-        assertEq(userC.claimedRewards, 0);      
+        assertEq(userC.accStakingRewards/1e14, 5.555e17/1e14);          // bonusBall received
+        assertEq(userC.claimedStakingRewards, 0);      
 
         assertEq(userC.accNftStakingRewards, 0);
         assertEq(userC.claimedNftRewards, 0);
@@ -1296,8 +1296,8 @@ contract StateT09Test is StateT09 {
         assertEq(userC.userIndex,  vaultC.accounting.rewardsAccPerToken);            // rounding    
         assertEq(userC.userNftIndex, 0);
 
-        assertEq(userC.accRewards/1e14, 8.222e17/1e14);          // bonusBall received
-        assertEq(userC.claimedRewards, 0);      
+        assertEq(userC.accStakingRewards/1e14, 8.222e17/1e14);          // bonusBall received
+        assertEq(userC.claimedStakingRewards, 0);      
 
         assertEq(userC.accNftStakingRewards, 0);
         assertEq(userC.claimedNftRewards, 0);
@@ -1449,8 +1449,8 @@ contract StateT10Test is StateT10 {
         assertEq(userC.userIndex, vaultC.accounting.rewardsAccPerToken);
         assertEq(userC.userNftIndex, 0);
 
-        assertEq(userC.accRewards/1e15, 1.222e18/1e15);          // bonusBall received
-        assertEq(userC.claimedRewards/1e15, 1.222e18/1e15);      
+        assertEq(userC.accStakingRewards/1e15, 1.222e18/1e15);          // bonusBall received
+        assertEq(userC.claimedStakingRewards/1e15, 1.222e18/1e15);      
 
         assertEq(userC.accNftStakingRewards, 0);
         assertEq(userC.claimedNftRewards, 0);
@@ -1622,10 +1622,10 @@ contract StateVaultAEndsTest is StateVaultAEnds {
         assertEq(userA.userNftIndex, 0);
         assertEq(userA.userIndex,  vaultA.accounting.rewardsAccPerToken);
 
-        // accRewards == claimed 
-        assertEq(userA.accRewards, userA.claimedRewards);      
-        assertEq(userA.accRewards/1e20, 6.48e23/1e20);           
-        assertEq(userA.claimedRewards/1e20, 6.48e23/1e20);      
+        // accStakingRewards == claimed 
+        assertEq(userA.accStakingRewards, userA.claimedStakingRewards);      
+        assertEq(userA.accStakingRewards/1e20, 6.48e23/1e20);           
+        assertEq(userA.claimedStakingRewards/1e20, 6.48e23/1e20);      
 
         assertEq(userA.accNftStakingRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
@@ -1657,11 +1657,11 @@ contract StateVaultAEndsTest is StateVaultAEnds {
         
         // check moca token balances: pre should be 0, unless claimed rewards 
         // userA claimed rewards at t5: 6.48e23 | creatorFee: 3e17
-        assertEq(preMocaBalanceA,  userAInfo.claimedRewards + userAInfo.claimedCreatorRewards);              
-        assertEq(postMocaBalanceA, userAPrinciple + userAInfo.claimedRewards + userAInfo.claimedCreatorRewards);
+        assertEq(preMocaBalanceA,  userAInfo.claimedStakingRewards + userAInfo.claimedCreatorRewards);              
+        assertEq(postMocaBalanceA, userAPrinciple + userAInfo.claimedStakingRewards + userAInfo.claimedCreatorRewards);
         // userB claimed rewards at t5: 3e17
-        assertEq(preMocaBalanceB, userBInfo.claimedRewards);              
-        assertEq(postMocaBalanceB, userBPrinciple + userBInfo.claimedRewards);
+        assertEq(preMocaBalanceB, userBInfo.claimedStakingRewards);              
+        assertEq(postMocaBalanceB, userBPrinciple + userBInfo.claimedStakingRewards);
 
         // check stkMoca token balances: 0 after unstaking
         assertEq(postStkMocaBalanceA, 0);
@@ -1732,9 +1732,9 @@ contract StateT2_592_003Test is StateT2_592_003 {
         assertEq(userBInfo.userIndex,  vaultA.accounting.rewardsAccPerToken);
         assertEq(userBInfo.userNftIndex, 0);
 
-        // accRewards == claimedRewards
-        assertEq(userBInfo.accRewards/1e20, 3.888e23/1e20);           
-        assertEq(userBInfo.claimedRewards/1e20, 3.888e23/1e20);      
+        // accStakingRewards == claimedRewards
+        assertEq(userBInfo.accStakingRewards/1e20, 3.888e23/1e20);           
+        assertEq(userBInfo.claimedStakingRewards/1e20, 3.888e23/1e20);      
 
         assertEq(userBInfo.accNftStakingRewards, 0);
         assertEq(userBInfo.claimedNftRewards, 0);
@@ -1933,7 +1933,7 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
             userIndex & rewardsAccPerToken
              1.62e22 * (1 - feeFactor) = 1.62e22 * 0.8 = ~ 1.295e22 
 
-            Rewards: accRewards + claimedRewards
+            Rewards: accStakingRewards + claimedRewards
              userC should have accrued all the rewards from vaultC
              5.555e17 + (1.296e24 * 0.8) = 1.0368e24
             
@@ -1954,11 +1954,11 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         assertEq(userCInfo.userNftIndex, 0);
         assertEq(userCInfo.userIndex,  vaultC.accounting.rewardsAccPerToken);
 
-        // accRewards == claimed 
-        assertEq(userCInfo.accRewards, userCInfo.claimedRewards);    
+        // accStakingRewards == claimed 
+        assertEq(userCInfo.accStakingRewards, userCInfo.claimedStakingRewards);    
 
-        assertEq(userCInfo.accRewards/1e21, 1.036e24/1e21);           
-        assertEq(userCInfo.claimedRewards/1e21, 1.036e24/1e21);      
+        assertEq(userCInfo.accStakingRewards/1e21, 1.036e24/1e21);           
+        assertEq(userCInfo.claimedStakingRewards/1e21, 1.036e24/1e21);      
 
         assertEq(userCInfo.accNftStakingRewards, 0);
         assertEq(userCInfo.claimedNftRewards, 0);

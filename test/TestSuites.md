@@ -56,3 +56,22 @@
 
 
  nft staker can staked into a non-nft pool at the very last second to grab incentive
+
+
+
+
+## TODO
+
+- test update creatorFee and NftFee
+- test pool management functions
+-- updateEmission
+-- emergencyExit
+-- freeze
+-- pause
+-- unpause
+
+- test updateVault
+-- off-chain script
+
+- test vault60, vault90 
+-- test w/ nft and without

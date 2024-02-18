@@ -195,7 +195,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         if (vault.stakedTokens == 0){    // check if first stake: eligible for bonusBall
             
             // award bonusBall rewards
-            userInfo.accRewards += vault.accounting.bonusBall;
+            userInfo.accStakingRewards += vault.accounting.bonusBall;
             
             // overwrite vaultBaseAllocPoints w/ incoming
             vault.allocPoints = incomingAllocPoints;
@@ -285,8 +285,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
         // update balances
-        uint256 totalUnclaimedRewards = userInfo.accRewards - userInfo.claimedRewards;
-        userInfo.claimedRewards += totalUnclaimedRewards;
+        uint256 totalUnclaimedRewards = userInfo.accStakingRewards - userInfo.claimedStakingRewards;
+        userInfo.claimedStakingRewards += totalUnclaimedRewards;
         vault.accounting.claimedRewards += totalUnclaimedRewards;
 
         //update storage
@@ -438,8 +438,6 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     }
 
 
-
-
     ///@notice Only allowed to increase the nft fee factor
     ///@dev Creator decrements the totalNftFeeFactor, which is dividied up btw the various nft stakers
     function updateNftFee(bytes32 vaultId, address onBehalfOf, uint256 newNftFeeFactor) external whenStarted whenNotPaused {
@@ -457,7 +455,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // incoming NftFeeFactor must be more than current
         if(newNftFeeFactor <= vault.accounting.totalNftFeeFactor) revert Errors.CreatorFeeCanOnlyBeDecreased(vaultId);
 
-        emit NftFeeFactorUpdated(vaultId, vault.accounting.creatorFeeFactor, newCreatorFeeFactor);
+        emit NftFeeFactorUpdated(vaultId, vault.accounting.creatorFeeFactor, newNftFeeFactor);
         
         // update Fee factor
         vault.accounting.totalNftFeeFactor = newNftFeeFactor;
@@ -600,7 +598,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
                 
                 // rewards from staking MOCA
                 accruedRewards = _calculateRewards(userInfo.stakedTokens, newUserIndex, userInfo.userIndex);
-                userInfo.accRewards += accruedRewards;
+                userInfo.accStakingRewards += accruedRewards;
 
                 emit RewardsAccrued(user, accruedRewards);
             }
@@ -620,7 +618,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         userInfo.userIndex = newUserIndex;
         userInfo.userNftIndex = newUserNftIndex;
         
-        emit UserIndexUpdated(user, vault.vaultId, newUserIndex, userInfo.accRewards);
+        emit UserIndexUpdated(user, vault.vaultId, newUserIndex, userInfo.accStakingRewards);
 
         return (userInfo, vault);
     }

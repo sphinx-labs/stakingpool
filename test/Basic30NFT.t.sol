@@ -213,7 +213,7 @@ abstract contract StateZero is Test {
             //bytes32 vaultId_, 
             ,uint256 stakedNfts, uint256 stakedTokens, 
             uint256 userIndex, uint256 userNftIndex,
-            uint256 accRewards, uint256 claimedRewards,
+            uint256 accStakingRewards, uint256 claimedStakingRewards,
             uint256 accNftStakingRewards, uint256 claimedNftRewards,
             uint256 claimedCreatorRewards
 
@@ -230,8 +230,8 @@ abstract contract StateZero is Test {
             userInfo.userIndex = userIndex;
             userInfo.userNftIndex = userNftIndex;
 
-            userInfo.accRewards = accRewards;
-            userInfo.claimedRewards = claimedRewards;
+            userInfo.accStakingRewards = accStakingRewards;
+            userInfo.claimedStakingRewards = claimedStakingRewards;
 
             userInfo.accNftStakingRewards = accNftStakingRewards;
             userInfo.claimedNftRewards = claimedNftRewards;
@@ -524,8 +524,8 @@ contract StateT03Test is StateT03 {
         assertEq(userA.userIndex, 0);   
         assertEq(userA.userNftIndex, 0);
 
-        assertEq(userA.accRewards, 1 ether);  // 1e18: bonusBall received
-        assertEq(userA.claimedRewards, 0);
+        assertEq(userA.accStakingRewards, 1 ether);  // 1e18: bonusBall received
+        assertEq(userA.claimedStakingRewards, 0);
 
         assertEq(userA.accNftStakingRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
@@ -642,7 +642,7 @@ contract StateT04Test is StateT04 {
         /**
             userIndex = vault.accounting.rewardsAccPerToken
 
-            accRewards = bonusBall(t2-t3) + 1e18(t3-t4) 
+            accStakingRewards = bonusBall(t2-t3) + 1e18(t3-t4) 
                        = 1e18 + [1e18 * 0.8]
                        = 1.8e18
 
@@ -660,8 +660,8 @@ contract StateT04Test is StateT04 {
         assertEq(userA.userIndex, vaultA.accounting.rewardsAccPerToken);   
 
         // rewards
-        assertEq(userA.accRewards, 1.8 ether);  // 1e18: bonusBall received + rewards less of fees
-        assertEq(userA.claimedRewards, 0);
+        assertEq(userA.accStakingRewards, 1.8 ether);  // 1e18: bonusBall received + rewards less of fees
+        assertEq(userA.claimedStakingRewards, 0);
 
         assertEq(userA.accNftStakingRewards, 1e17);
         assertEq(userA.claimedNftRewards, 0);
@@ -787,7 +787,7 @@ contract StateT05Test is StateT05 {
 
             userNftIndex = vaultA.accounting.vaultNftIndex
 
-            accRewards = bonusBall(t2-t3) + 1e18(t3-t4) + 1e18(t4-t5)  | [bonusBall + rewards less of fees]
+            accStakingRewards = bonusBall(t2-t3) + 1e18(t3-t4) + 1e18(t4-t5)  | [bonusBall + rewards less of fees]
                        = 1e18 + [2e18 * 0.8]
                        = 2.6e18
 
@@ -804,8 +804,8 @@ contract StateT05Test is StateT05 {
         assertEq(userB.userIndex, vaultA.accounting.rewardsAccPerToken);   
 
         // rewards
-        assertEq(userB.accRewards, 0 ether);  
-        assertEq(userB.claimedRewards, 0);
+        assertEq(userB.accStakingRewards, 0 ether);  
+        assertEq(userB.claimedStakingRewards, 0);
 
         assertEq(userB.accNftStakingRewards, 0);
         assertEq(userB.claimedNftRewards, 0);
@@ -931,7 +931,7 @@ contract StateT06Test is StateT06 {
 
             userNftIndex = vaultA.accounting.vaultNftIndex
 
-            accRewards = 0 || just staked tokens
+            accStakingRewards = 0 || just staked tokens
 
             accNftStakingRewards = nftFeeForPeriod / totalStakedNfts 
                                  = 1e17 / 2
@@ -947,8 +947,8 @@ contract StateT06Test is StateT06 {
         assertEq(userB.userIndex, vaultA.accounting.rewardsAccPerToken);   
 
         // rewards
-        assertEq(userB.accRewards, 0 ether);  
-        assertEq(userB.claimedRewards, 0);
+        assertEq(userB.accStakingRewards, 0 ether);  
+        assertEq(userB.claimedStakingRewards, 0);
 
         assertEq(userB.accNftStakingRewards, 5e16);
         assertEq(userB.claimedNftRewards, 0);
@@ -1069,7 +1069,7 @@ contract StateT07Test is StateT07 {
 
             userNftIndex = vaultA.accounting.vaultNftIndex
 
-            accRewards = 0 || just staked tokens
+            accStakingRewards = 0 || just staked tokens
 
             accNftStakingRewards = nftFeeForPeriod / totalStakedNfts 
                                  = 1e17 / 2
@@ -1085,8 +1085,8 @@ contract StateT07Test is StateT07 {
         assertEq(userC.userIndex, vaultC.accounting.rewardsAccPerToken);   
 
         // rewards
-        assertEq(userC.accRewards, 0 ether);  
-        assertEq(userC.claimedRewards, 0);
+        assertEq(userC.accStakingRewards, 0 ether);  
+        assertEq(userC.claimedStakingRewards, 0);
 
         assertEq(userC.accNftStakingRewards, 0);
         assertEq(userC.claimedNftRewards, 0);
@@ -1213,7 +1213,7 @@ contract StateT08Test is StateT08 {
 
             userNftIndex = vaultA.accounting.vaultNftIndex
 
-            accRewards = 0 || no tokens staked
+            accStakingRewards = 0 || no tokens staked
 
             accNftStakingRewards = nftFeeForPeriod / totalStakedNfts 
                                  = 0
@@ -1229,8 +1229,8 @@ contract StateT08Test is StateT08 {
         assertEq(userC.userIndex, vaultC.accounting.rewardsAccPerToken);   
 
         // rewards
-        assertEq(userC.accRewards, 0 ether);  
-        assertEq(userC.claimedRewards, 0);
+        assertEq(userC.accStakingRewards, 0 ether);  
+        assertEq(userC.claimedStakingRewards, 0);
 
         assertEq(userC.accNftStakingRewards, 0);
         assertEq(userC.claimedNftRewards, 0);
@@ -1246,7 +1246,7 @@ contract StateT08Test is StateT08 {
 //      rewards emitted frm t8 to t9 is proportionally split btw both vaults. 
 //      creator/nft fees are not applied to rewards as no tokens have been staked in prior periods
 //      since the 1st token stake into the vault occurs, userC is the beneficary of the bonusBall payout
-//      bonusBall is booked to userC - accRewards
+//      bonusBall is booked to userC - accStakingRewards
 abstract contract StateT09 is StateT08 {
 
     function setUp() public virtual override {
@@ -1363,7 +1363,7 @@ contract StateT09Test is StateT09 {
 
             userNftIndex = vaultA.accounting.vaultNftIndex
 
-            accRewards = 0 || no tokens staked
+            accStakingRewards = 0 || no tokens staked
 
             accNftStakingRewards = nftFeeForPeriod / totalStakedNfts 
                                  = 0
@@ -1379,8 +1379,8 @@ contract StateT09Test is StateT09 {
         assertEq(userC.userIndex, vaultC.accounting.rewardsAccPerToken);   
 
         // rewards
-        assertEq(userC.accRewards, 4e17);  
-        assertEq(userC.claimedRewards, 0);
+        assertEq(userC.accStakingRewards, 4e17);  
+        assertEq(userC.claimedStakingRewards, 0);
 
         assertEq(userC.accNftStakingRewards, 0);
         assertEq(userC.claimedNftRewards, 0);
@@ -1673,16 +1673,16 @@ contract StateVaultAEndTimeTest is StateVaultAEndTime {
                                = 1.619998225e22
              rewardsLessOfFees = 1.619998225e22 * 0.8 
                                = 1.29599858e22
-            accRewards 
+            accStakingRewards 
              [t6 - t2_592_002]
-             accRewards = rewardsLessOfFees * userBPrinciple
+             accStakingRewards = rewardsLessOfFees * userBPrinciple
                        = 1.619998225e22 * 50
                        = 8.099991125e23
              [t3 - t6]
-             accRewards = 1.8e18
+             accStakingRewards = 1.8e18
             
              [total]
-             accRewards = 1.8e18 + 8.099991125e23 
+             accStakingRewards = 1.8e18 + 8.099991125e23 
                        = 8.100009125e23
                        = 8.100e23
 
@@ -1717,8 +1717,8 @@ contract StateVaultAEndTimeTest is StateVaultAEndTime {
         assertEq(userA.userIndex, vaultA.accounting.rewardsAccPerToken);   
 
         // rewards
-        assertEq(userA.accRewards/1e20, 8.100e23/1e20);             
-        assertEq(userA.claimedRewards/1e20, 8.100e23/1e20);         
+        assertEq(userA.accStakingRewards/1e20, 8.100e23/1e20);             
+        assertEq(userA.claimedStakingRewards/1e20, 8.100e23/1e20);         
 
         assertEq(userA.accNftStakingRewards/1e19, 8.100e22/1e19);   
         assertEq(userA.claimedNftRewards/1e19, 8.100e22/1e19);         
@@ -1745,7 +1745,7 @@ contract StateVaultAEndTimeTest is StateVaultAEndTime {
              rewardsLessOfFees = 1.619998225e22 * 0.8 
                                = 1.29599858e22
             
-            accRewards = rewardsLessOfFees * userBPrinciple
+            accStakingRewards = rewardsLessOfFees * userBPrinciple
                        = 1.619998225e22 * 30
                        = 4.859994675e23
                        ~ 4.859e23
@@ -1771,8 +1771,8 @@ contract StateVaultAEndTimeTest is StateVaultAEndTime {
         assertEq(userB.userIndex, vaultA.accounting.rewardsAccPerToken);   
 
         // rewards
-        assertEq(userB.accRewards/1e20, 4.859e23/1e20);             
-        assertEq(userB.claimedRewards/1e20, 4.859e23/1e20);         
+        assertEq(userB.accStakingRewards/1e20, 4.859e23/1e20);             
+        assertEq(userB.claimedStakingRewards/1e20, 4.859e23/1e20);         
 
         assertEq(userB.accNftStakingRewards/1e19, 8.099e22/1e19);   
         assertEq(userB.claimedNftRewards/1e19, 8.099e22/1e19);         
@@ -1926,8 +1926,8 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         assertEq(userC.userIndex, vaultC.accounting.rewardsAccPerToken);   
 
         // rewards
-        assertEq(userC.accRewards/1e20,     (vaultC.accounting.totalAccRewards * 8/10) /1e20);            
-        assertEq(userC.claimedRewards/1e20, (vaultC.accounting.totalAccRewards * 8/10) /1e20);         
+        assertEq(userC.accStakingRewards/1e20,     (vaultC.accounting.totalAccRewards * 8/10) /1e20);            
+        assertEq(userC.claimedStakingRewards/1e20, (vaultC.accounting.totalAccRewards * 8/10) /1e20);         
 
         assertEq(userC.accNftStakingRewards, vaultC.accounting.accNftStakingRewards);   
         assertEq(userC.claimedNftRewards, vaultC.accounting.accNftStakingRewards);         
