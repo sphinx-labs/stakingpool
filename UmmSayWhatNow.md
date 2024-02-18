@@ -44,14 +44,12 @@ Well, what is the internal process w/ wallet mgmt?
 - https://coinsbench.com/how-to-safely-manage-smart-contract-ownership-cc6acbbfcc8f?gi=2ca3c9fd515c
 
 
-
-remove all instances ofthe ladele
+Router
 - Uniswap Router and the Compound Bulker.
 
 restrict fns on stakingPoolL: onlyRouter
  - users must user router to publicly call
 
-1. change vaultBaseAllocPoints to immutable
 2. refactor testing to be modular?
 
 

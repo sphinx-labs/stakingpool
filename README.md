@@ -1,3 +1,7 @@
+# Dependencies
+
+forge install  openzeppelin/openzeppelin-contracts@v5.0.1
+
 # Staking Pool with vaults
 
 Staking pool with a twist.
@@ -62,11 +66,22 @@ The total rewards earned from levying said fees are reflected in the vault.accou
 
 Since we need to accommodate the fact that nfts could be staked at different times through the lifecycle of a vault, we use `vaultNftIndex` together with `userNftIndex` to accurately award nft staking rewards to said users.
 
+While a vault is active, creator can lower the creatorFeeFactor and increase the totalNftFeeFactor to make their vault more appealing to token and nft stakers. 
+
+### Fee calculations
+
+Fees are applied to rewards accrued by a vault, once there are tokens staked into it.
+
+- fees only begin accrue if `vault.stakedTokens > 0` 
+- rewards accrued by the vault prior to that, as a result of baseVaultAllocPoints (i.e. virtual allocPoints), are not subject to fees.
+
+
+
 ## Staking
 
 Users are expected to stake Moca tokens into a vault to earn staking rewards.
 
-- Once staked, users can only unstake their principal once the vault has matured.
+- Once staked, users can only unstake their assets once the vault has matured.
 - However, users are free to claim rewards and fees before the vault has matured, and restake them - in any vault of choice.
 
 > There are staking limits based on RP now? need to confirm before implementing
@@ -75,49 +90,97 @@ Users are expected to stake Moca tokens into a vault to earn staking rewards.
 
 A vault's allocPoints is determined by: `stakedTokens * multiplier`
 
-This means that if the vault's multiplier is > 1, 
+This means that if the vault's multiplier is > 1, users staked tokens are effectively multiplied and they earn rewards as if they had staked a much larger sum.
 
-Additionally, they can stake Moca NFTs to "boost" the rewards earned by the vault.
+### Multiplier
+
+A vault's multiplier is determined by two factors:
+
+1. duration (60/90)
+2. number of nfts staked
+
 Each nft staked increases the vault multiplier by a fixed amount as defined by the constant `nftMultiplier`.
 
 > Vault multiplier accounting needs to be confirmed. Are we doubling the entire amount or just the base?
 > Will it be an additive series or multiplicative?
 
-## BonusBall and 1st NFT incentive
+## BonusBall
 
+To incentivize users to seek and stake into empty vaults, we have the concept of bonusBall.
 
-## 
+A vault accrues rewards the moment it has been created, even if no tokens have been staked into it.
+It is treated as though it has allocPoints (`vaultBaseAllocPoints`) - and based on this the rewards due to the vault are calculated and alloted.
 
-pool -> vault
-- operate on allocPOints
+These rewards which have been accrued on the basis of `vaultBaseAllocPoints`, are awarded to the 1st staked into the vault.
+The longer a vault is left empty, the greater this reward.
+
+> The duration multiplier effect applied to the `vaultBaseAllocPoints`
+
+## NFT staking incentive
+
+As fees accrue the moment tokens are staked into vault, this would mean that the nftFee is applied on incoming rewards although there might be no nft staked.
+
+- These rewards are awarded to the 1st nft staker.
+- Subsequently, fee payouts are calculated normally and split amongst the nft stakers as per their time staked.
+
+## Off-chain support
+
+### Update VaultIndex before maturity
+
+`if(latestPoolTimestamp > vault.endTime) return vault`
+
+- Need a script to updateVaults seconds before they end
+- This is to update vaultIndex before the vault expires, as once the vault expires it cannot be updated.
+- Avoid rewards slippage.
+
+Example:
+
+- vault ends at t=60
+- last transaction made involving the vault occurs at t=3
+- assuming nothing else happens, the vault will hit its endTime with a stale vaultIndex, as per t=3.
+- thus when rewards are calculated when users call `claimRewards` after vault expiry, it will be based on the vault state at t=3
+
+There is no possible way to have the vaultIndex automatically capture the poolIndex at the time of its expiry as updates to the vault is transaction driven.
+
+Script should call `updateVault` some time before vault maturity to prevent index drift.
+
+### Delayed deduction of PoolAllocPoints when a vault matures
+
+- Once a vault ends, its allocPoints is not automatically deducted from the poolAllocPoints.
+- Only when `unstake` is called, is vaultAllocPoints deducted and therefore poolAllocPoints.
+- This means that we must wait for someone to come along and call `unstake` or we could just do it for all the vault users upon maturity.
+
+Discuss.
+
+# Architecture and Design
+
+## Pool and vaults (allocPoints)
+
+The pool emits a fixed amount of rewards per second, which is split amongst all the vaults in existence.
+
+- operates on allocPoints
+- pool.totalAllocPoints
 - vault.allocPoints
 
-:: vault.allocPoints::
-- updated in create, based on duration
-- update in stake, based on stake amount: incomingAllocPoints = (amount * vault.multiplier)
+### vault.allocPoints
+
+- updated in `create`, based on duration.
+- update in `stake`, based on stake amount: incomingAllocPoints = (amount * vault.multiplier)
+
+## PoolIndex-VaultIndex
 
 internal to a vault
 - can operate on token values
 - convert vaultIndex(rewardsAccPerAllocPoint) to vaultIndex(rewardsAccPerToken)
 - userIndex(rewardsAccPerToken)
 
-## Dependencies
-
-forge install  openzeppelin/openzeppelin-contracts@v5.0.1
-
-## AllocPoints
-
-1 allocPoint = "1 token"
-
-cos of multiplier/boosting effects.
-
 ## Indexes
 
-### wtf index
-
-poolIndex  = accRewardsPerAllocPoint
+how they work: https://calnix.gitbook.io/aave-unleashed/~/changes/crcNP9bam77aBfueaCCd/on-indexes
 
 ### Pool Index
+
+poolIndex = accRewardsPerAllocPoint
 
 poolIndex reflects the rewardsAccruedPerAllocPoint since inception.
 poolIndex will be updated when either one of the following changes:
@@ -125,29 +188,31 @@ poolIndex will be updated when either one of the following changes:
     2. poolEmissisonPerSecond
 
 totalAllocPoints is incremented on vault creation and decremented on vault maturity.
+
 > need a script to update totalAllocPoints to prevent dilution, specific on vault mautiries
 
 ### Pool Index and Vault Index
 
 Vaults can be created on an ad-hoc basis during the staking period. Upon creation, vaultIndex == poolIndex, to disregard all prior accrued rewards.
 
-Therefore, the rewards captured by a specific vault is defined as the delta between its initial vaultIndex value and final value at maturity.
-
-Each time a vault experiences a state-change (stake, claim), rewards earned from lastUpdateTimestamp till now are booked into accRewards.
+- Therefore, the rewards captured by a specific vault is defined as the delta between its initial vaultIndex value and final value at maturity.
+- Each time a vault experiences a state-change (stake, claim), rewards earned from `lastUpdateTimestamp` till now are booked into accRewards.
 
 ### Vault Index and User Index
 
 Similar to vaultIndex, the userIndex reflects the rewards captured by a specific user, for a specific vault, based on their duration of staking exposure.
+However, where `vaultIndex` is based upon allocPoints, `userIndex` is based upon tokens - `userIndex` represents the rewardsAccruedPerTokenStaked.
 
-I.e. Upon staking, userIndex is initially set to equal vaultIndex at the time of staking. This is to negate all prior earned rewards.
-Subsequently, each time the user engages in state-changing behaviour, his prior rewards up till that point is calculated and booked into accRewards.
+Upon staking, `userIndex` is initially set to equal `vault.accounting.rewardsAccPerToken` at the time of staking. This is to negate all prior earned rewards.
+Subsequently, each time the user engages in state-changing behaviour, his prior rewards up till that point is calculated and booked into `accStakingRewards`.
 
 ### Fees and rewards
 
-The userIndex is net of fees.
-vaultIndex * fees(0.80) = userIndex.
+The `userIndex` is net of fees.
 
-I am applying fees onto vaultIndex - which is denominated in 18 dp precision, as defined by our Moca token. So sensible to stick with that.
+    vaultIndex * fees(0.80) = vault.accounting.rewardsAccPerToken = userIndex
+
+So to calculate a user's staking rewards, we simply multiply their stakenTokens with their userIndex.
 
 ## NftIndex and rewards
 

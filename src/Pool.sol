@@ -455,7 +455,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         emit NftFeeFactorUpdated(vaultId, vault.accounting.creatorFeeFactor, newNftFeeFactor);
         
         // update Fee factor
-        vault.accounting.totalFeeFactor += newNftFeeFactor - newCreatorFeeFactor;
+        vault.accounting.totalFeeFactor += newNftFeeFactor - vault.accounting.totalNftFeeFactor;
         vault.accounting.totalNftFeeFactor = newNftFeeFactor;
 
         // update storage

@@ -72,6 +72,45 @@ Batch teh following
 
  /**
  Gas-less Token Transfer - Code: https://www.youtube.com/watch?v=jYNnatXRsBs
-
-
   */
+
+// sig is created on the FE. 
+// wb NFT chips?
+
+
+/**
+1) NFT registry does not issue erc20 token.
+    no. of nfts per user recorded in mapping
+    when user wishes to stake nft, router calls registry to check if there are available nfts
+    Once an nft is staked, registry must be updated by the stakingPool, to "lock" nfts
+     increment lockAmount
+     decrement availableAmount
+
+Since no tokens are used in this approach, users will not be able to "see" anything
+in their metamask wallet
+
+2) NFT registry issues erc20 token.
+    On locking the nFT on mainnet, registry issues bridgedNftToken to user, on polygon
+    user can stake bridgedNFTToken into stakingPool
+    on staking, user transfers bridgedNftToken to pool, and receives stkNftToken.
+
+    This means tt while registry can inherit bridgedNFTToken.
+    We will need a standalone erc20 token contract for stkNftToken.
+    stakinPool cannot inherit this, since it already inherits stkMocaToken.
+
+    registry mints user bridgedNFTToken
+    bridgedNFTToken transferred to stakingPool
+    - bridgedNFTToken must be freely mint/burn and transferable
+
+    stakinPool mints/burns stkNftToken
+    - stkNftToken can be non-transferable.
+
+bridgedNFTToken will need to be ERC20Permit, for gassless transfer on staking.
+
+ */
+
+
+/**
+
+
+ */
