@@ -389,7 +389,7 @@ contract StateT02Test is StateT02 {
         assertEq(0, vaultA.accounting.accCreatorRewards);
         assertEq(0, vaultA.accounting.bonusBall);
 
-        assertEq(0, vaultA.accounting.claimedRewards);
+        assertEq(0, vaultA.accounting.totalClaimedRewards);
 
     }
 
@@ -501,7 +501,7 @@ contract StateT03Test is StateT03 {
         assertEq(vaultA.accounting.accCreatorRewards, 0);                // no tokens staked prior to t=3. therefore no creator rewards       
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
-        assertEq(vaultA.accounting.claimedRewards, 0); 
+        assertEq(vaultA.accounting.totalClaimedRewards, 0); 
 
     }
 
@@ -631,7 +631,7 @@ contract StateT04Test is StateT04 {
         assertEq(vaultA.accounting.accCreatorRewards, 1e17);                      
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
-        assertEq(vaultA.accounting.claimedRewards, 0); 
+        assertEq(vaultA.accounting.totalClaimedRewards, 0); 
     }
 
     function testUserAT04() public {
@@ -772,7 +772,7 @@ contract StateT05Test is StateT05 {
         assertEq(vaultA.accounting.accCreatorRewards/1e14, 1.999e17/1e14);               // calculated val: 2e17       
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
-        assertEq(vaultA.accounting.claimedRewards, 0); 
+        assertEq(vaultA.accounting.totalClaimedRewards, 0); 
     }
 
     function testUserBT05() public {
@@ -917,7 +917,7 @@ contract StateT06Test is StateT06 {
         assertEq(vaultA.accounting.accCreatorRewards/1e14, 2.999e17/1e14);                  
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
-        assertEq(vaultA.accounting.claimedRewards, 0); 
+        assertEq(vaultA.accounting.totalClaimedRewards, 0); 
     }
 
     function testUserBT06() public {
@@ -1055,7 +1055,7 @@ contract StateT07Test is StateT07 {
         assertEq(vaultC.accounting.accCreatorRewards, 0);                  
         assertEq(vaultC.accounting.bonusBall, 0); 
 
-        assertEq(vaultC.accounting.claimedRewards, 0); 
+        assertEq(vaultC.accounting.totalClaimedRewards, 0); 
     }
 
     function testUserCT07() public {
@@ -1199,7 +1199,7 @@ contract StateT08Test is StateT08 {
         assertEq(vaultC.accounting.accCreatorRewards,  0);                  
         assertEq(vaultC.accounting.bonusBall,  2e17); 
 
-        assertEq(vaultC.accounting.claimedRewards, 0); 
+        assertEq(vaultC.accounting.totalClaimedRewards, 0); 
     }
 
     function testUserCT08() public {
@@ -1349,7 +1349,7 @@ contract StateT09Test is StateT09 {
         assertEq(vaultC.accounting.accCreatorRewards,  0);                  
         assertEq(vaultC.accounting.bonusBall,  4e17); 
 
-        assertEq(vaultC.accounting.claimedRewards, 0); 
+        assertEq(vaultC.accounting.totalClaimedRewards, 0); 
     }
     
     function testUserCT09() public {
@@ -1503,7 +1503,7 @@ contract StateT10Test is StateT10 {
         assertEq(vaultC.accounting.accCreatorRewards,  3.75e16);                  
         assertEq(vaultC.accounting.bonusBall,  4e17); 
 
-        assertEq(vaultC.accounting.claimedRewards, 0); 
+        assertEq(vaultC.accounting.totalClaimedRewards, 0); 
     }
     
 }
@@ -1652,7 +1652,7 @@ contract StateVaultAEndTimeTest is StateVaultAEndTime {
         assertEq(vaultA.accounting.accCreatorRewards/1e20, 1.620e23/1e20);                  
         assertEq(vaultA.accounting.bonusBall, 1e18); 
 
-        assertEq(vaultA.accounting.claimedRewards/1e21, 1.620e24/1e21);        
+        assertEq(vaultA.accounting.totalClaimedRewards/1e21, 1.620e24/1e21);        
        
     }
 
@@ -1904,7 +1904,7 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         assertEq(vaultC.accounting.accCreatorRewards/1e19, 9.720e22/1e19);                  
         assertEq(vaultC.accounting.bonusBall, 4e17); 
 
-        assertEq(vaultC.accounting.claimedRewards/1e20,  9.720e23/1e20);    
+        assertEq(vaultC.accounting.totalClaimedRewards/1e20,  9.720e23/1e20);    
        
     }
 

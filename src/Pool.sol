@@ -287,7 +287,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // update balances
         uint256 totalUnclaimedRewards = userInfo.accStakingRewards - userInfo.claimedStakingRewards;
         userInfo.claimedStakingRewards += totalUnclaimedRewards;
-        vault.accounting.claimedRewards += totalUnclaimedRewards;
+        vault.accounting.totalClaimedRewards += totalUnclaimedRewards;
 
         //update storage
         vaults[vaultId] = vault;
@@ -310,6 +310,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
         uint256 totalUnclaimedRewards;
+
         // collect creator fees
         if(vault.creator == onBehalfOf) {
             uint256 unclaimedCreatorRewards = (vault.accounting.accCreatorRewards - userInfo.claimedCreatorRewards);
@@ -333,7 +334,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         }
         
         // update vault balances
-        vault.accounting.claimedRewards += totalUnclaimedRewards;
+        vault.accounting.totalClaimedRewards += totalUnclaimedRewards;
 
         //update storage
         vaults[vaultId] = vault;

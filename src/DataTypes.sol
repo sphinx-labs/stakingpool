@@ -66,7 +66,8 @@ contract DataTypes {
         uint256 accCreatorRewards;    
         uint256 bonusBall;
 
-        uint256 claimedRewards;     //note: make it totalClaimed. cos it records creator
+        // total: staking, nft, creator
+        uint256 totalClaimedRewards;    
     }
 
 
@@ -100,9 +101,3 @@ contract DataTypes {
 
 // Note: vaultId not assigned in stakeTokens.
 // user B userInfo vaultID is 0.
-
-
-//Note: consider renaming claimedRewards -> claimedStakingRewards.
-// you got confused thinking creator was booked to it also. when its not.
-// in the same vein accRewards
-// accStakingRewards, claimedStakingRewards  ?
