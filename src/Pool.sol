@@ -67,6 +67,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     event NftRewardsClaimed(bytes32 indexed vaultId, address indexed creator, uint256 amount);
     event CreatorRewardsClaimed(bytes32 indexed vaultId, address indexed creator, uint256 amount);
 
+    event CreatorFeeFactorUpdated(bytes32 indexed vaultId, uint256 indexed oldCreatorFeeFactor, uint256 indexed newCreatorFeeFactor);
+    event NftFeeFactorUpdated(bytes32 indexed vaultId, uint256 indexed oldCreatorFeeFactor, uint256 indexed newCreatorFeeFactor);
 
 
 //-------------------------------mappings-------------------------------------------
@@ -408,12 +410,61 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         vaults[vaultId] = vault_;
     }
 
-    function updateCreatorFee(bytes32 vaultId, uint256 fee )external whenStarted whenNotPaused {
+    ///@notice Only allowed to reduce the creator fee factor
+    function updateCreatorFee(bytes32 vaultId, address onBehalfOf, uint256 newCreatorFeeFactor) external whenStarted whenNotPaused {
 
+        // get vault + check if has been created
+       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
+
+        // update indexes and book all prior rewards
+       (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+
+        // check vault: not ended + user must be creator 
+        if(vault.endTime <= block.timestamp) revert Errors.VaultMatured(vaultId);
+        if(vault.creator != onBehalfOf) revert Errors.UserIsNotVaultCreator(vaultId, onBehalfOf);
+        
+        // incoming feeFactor must be lower than current
+        if(newCreatorFeeFactor >= vault.accounting.creatorFeeFactor) revert Errors.CreatorFeeCanOnlyBeDecreased(vaultId);
+
+        emit CreatorFeeFactorUpdated(vaultId, vault.accounting.creatorFeeFactor, newCreatorFeeFactor);
+
+
+        // update Fee factor
+        vault.accounting.creatorFeeFactor = newCreatorFeeFactor;
+
+        // update storage
+        vaults[vaultId] = vault_;
+        users[onBehalfOf][vaultId] = userInfo;
     }
 
-    function updateNftFee(bytes32 vaultId, uint256 fee )external whenStarted whenNotPaused {
+
+
+
+    ///@notice Only allowed to increase the nft fee factor
+    ///@dev Creator decrements the totalNftFeeFactor, which is dividied up btw the various nft stakers
+    function updateNftFee(bytes32 vaultId, address onBehalfOf, uint256 newNftFeeFactor) external whenStarted whenNotPaused {
+
+        // get vault + check if has been created
+       (DataTypes.UserInfo memory userInfo_, DataTypes.Vault memory vault_) = _cache(vaultId, onBehalfOf);
+
+        // update indexes and book all prior rewards
+       (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
+
+        // check vault: not ended + user must be creator 
+        if(vault.endTime <= block.timestamp) revert Errors.VaultMatured(vaultId);
+        if(vault.creator != onBehalfOf) revert Errors.UserIsNotVaultCreator(vaultId, onBehalfOf);
         
+        // incoming NftFeeFactor must be more than current
+        if(newNftFeeFactor <= vault.accounting.totalNftFeeFactor) revert Errors.CreatorFeeCanOnlyBeDecreased(vaultId);
+
+        emit NftFeeFactorUpdated(vaultId, vault.accounting.creatorFeeFactor, newCreatorFeeFactor);
+        
+        // update Fee factor
+        vault.accounting.totalNftFeeFactor = newNftFeeFactor;
+
+        // update storage
+        vaults[vaultId] = vault_;
+        users[onBehalfOf][vaultId] = userInfo;
     }
 
 
@@ -578,7 +629,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     function _cache(bytes32 vaultId, address onBehalfOf) internal view returns(DataTypes.UserInfo memory, DataTypes.Vault memory){
         
         DataTypes.Vault memory vault = vaults[vaultId];
-        if (vault.creator == address(0)) revert Errors.NonExistentVault(vaultId);
+        if(vault.creator == address(0)) revert Errors.NonExistentVault(vaultId);
 
         // get userInfo for said vault
         DataTypes.UserInfo memory userInfo = users[onBehalfOf][vaultId];

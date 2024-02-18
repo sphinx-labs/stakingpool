@@ -12,13 +12,14 @@ library Errors {
     error Test(uint256 counter);
     
     error InvalidVaultPeriod();
-
     error InvalidStakingPeriod();
 
     error InsufficientTimeLeft();
 
     error NonExistentVault(bytes32 vaultId);
-    
+
+    error UserIsNotVaultCreator(bytes32 vaultId, address user) ;
+
     error VaultMatured(bytes32 vaultId);
     error VaultNotMatured(bytes32 vaultId);
     
@@ -27,5 +28,7 @@ library Errors {
     error UserHasNothingStaked(bytes32 vaultId, address user);
 
     error InvalidEmissionParameters();
+
+    error CreatorFeeCanOnlyBeDecreased(bytes32 vaultId) ;
 
 }

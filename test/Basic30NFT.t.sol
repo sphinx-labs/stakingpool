@@ -1913,14 +1913,8 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         DataTypes.UserInfo memory userC = getUserInfoStruct(vaultIdC, userC);
         DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
 
-        //userC nft incentive =- 0? | bonusBall: 4e17
-
-        /** UserC is a beneficiary of bonusball of 1st nft staking incentive
-
+        /** 
             UserC is the sole beneficiary of all of VaultC rewards and fees.
-
-
-             
         */
 
         // nft section 
@@ -1932,7 +1926,7 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         assertEq(userC.userIndex, vaultC.accounting.rewardsAccPerToken);   
 
         // rewards
-        assertEq(userC.accRewards/1e20,     (vaultC.accounting.totalAccRewards * 8/10) /1e20);                //7.776e23 | 9.72e23
+        assertEq(userC.accRewards/1e20,     (vaultC.accounting.totalAccRewards * 8/10) /1e20);            
         assertEq(userC.claimedRewards/1e20, (vaultC.accounting.totalAccRewards * 8/10) /1e20);         
 
         assertEq(userC.accNftStakingRewards, vaultC.accounting.accNftStakingRewards);   
