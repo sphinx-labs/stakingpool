@@ -125,6 +125,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
                                 EXTERNAL
     //////////////////////////////////////////////////////////////*/
 
+    ///@dev create empty vault, without need for RP
+    function createFreeVault() external {}
+
     ///@dev creates empty vault
     function createVault(address onBehalfOf, uint8 salt, DataTypes.VaultDuration duration, uint256 creatorFee, uint256 nftFee) external whenStarted whenNotPaused {
         //note: rp check

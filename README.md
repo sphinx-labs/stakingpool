@@ -11,6 +11,8 @@ Users can will then seek to stake in whichever vault appeals to them, based on t
 In short, users stake into vaults. The pool emits a certain amount of token rewards per second, which is distributed across all created vaults proportionally, based upon their allocPoints.
 Vaults have differing allocPoints as a consequence of their duration and number of NFTs staked in them.
 
+![alt text](image.png)
+
 ## Pool
 
 Pool has a specified startTime and endTime. Vaults created must start and end within this period.
@@ -144,6 +146,8 @@ There is no possible way to have the vaultIndex automatically capture the poolIn
 
 Script should call `updateVault` some time before vault maturity to prevent index drift.
 
+![alt text](image-1.png)
+
 ### Delayed deduction of PoolAllocPoints when a vault matures
 
 - Once a vault ends, its allocPoints is not automatically deducted from the poolAllocPoints.
@@ -254,7 +258,8 @@ Thus the contingency plan will be as follows:
 2. assess
 3. If sitrep deems a valid attack, call `freeze`. Else `unpause` for continuation.
 4. On `freeze`: user can withdraw staked assets via `emergencyExit`.
-5. If the scope of attack somehow incapacitates the withdrawal of principal assets, we would need an admin emergency function: `recoverERC20`, `recoverNft`--> (legal will have issues?)
+5. If the scope of attack somehow incapacitates the withdrawal of principal assets, we would need an admin emergency function: 
+6. `recoverERC20`, `recoverNft`--> (legal will have issues?)
 
 >Note that pool and vault indexes will NOT be updated to brought in-line with the present time.  - in the event of an emergency.
 
@@ -272,3 +277,9 @@ The only material impact would be that during the paused period users cannot cla
 ## Gas Opt
 
 No time.
+
+
+
+## Ownership
+
+- 

@@ -10,7 +10,7 @@
 - t5: userA and userB claim rewards
 -- userA accrues rewards from t3 to t5
 -- userB accrues rewards from t4 to t5
-- t6: userA claims creatorFee reward 
+- t6: userA claims creatorFee reward
 -- (partial claim as the vault has not matured)
 - t7: vaultC created, by userC
 - t8: userC stakes half of principal (beneficiary of BonusBall)
@@ -37,8 +37,8 @@
 - t8: userC stakes nft
 - t9: userC stakes tokens
 - t10: check updated vault
-- t_StateVaultAEndTime: vaultA ends (userC cannot stake nft once vault ends)
-- t_: vaultC end
+- t_StateVaultAEnds: vaultA ends (userC cannot stake nft once vault ends)
+- t_StateTVaultCEnds: vaultC ends
 
 
 ### need to test double staking of nft
@@ -58,8 +58,6 @@
  nft staker can staked into a non-nft pool at the very last second to grab incentive
 
 
-
-
 ## TODO
 
 - test update creatorFee and NftFee
@@ -75,6 +73,6 @@
 
 - test vault60, vault90 
 -- test w/ nft and without
-
+-- 4 more permutations at least
 
 test RP contract call
