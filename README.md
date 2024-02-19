@@ -77,8 +77,6 @@ Fees are applied to rewards accrued by a vault, once there are tokens staked int
 - fees only begin accrue if `vault.stakedTokens > 0` 
 - rewards accrued by the vault prior to that, as a result of baseVaultAllocPoints (i.e. virtual allocPoints), are not subject to fees.
 
-
-
 ## Staking
 
 Users are expected to stake Moca tokens into a vault to earn staking rewards.
@@ -181,6 +179,7 @@ internal to a vault
 ## Indexes
 
 how they work: https://calnix.gitbook.io/aave-unleashed/~/changes/crcNP9bam77aBfueaCCd/on-indexes
+![alt text](image-2.png)
 
 ### Pool Index
 
