@@ -157,6 +157,8 @@ abstract contract StateZero is Test {
 
         // check rewards vault
         assertEq(rewardsVault.totalVaultRewards(), rewards);
+        assertEq(rewardsVault.totalPaidRewards(), 0);
+
 
         // check time
         assertEq(block.timestamp, 0);
@@ -739,6 +741,9 @@ contract StateT05Test is StateT05 {
         uint256 vaultBalance = mocaToken.balanceOf(address(rewardsVault));
         assertEq(vaultBalance, rewards - vaultA.accounting.totalClaimedRewards);                  
         assertEq(rewardsVault.totalVaultRewards(), rewards - vaultA.accounting.totalClaimedRewards);
+
+        assertEq(rewardsVault.totalPaidRewards(), vaultA.accounting.totalClaimedRewards);
+
     }
 
 
@@ -905,6 +910,8 @@ contract StateT06Test is StateT06 {
         
         assertEq(vaultBalance, rewards - vaultA.accounting.totalClaimedRewards);                  
         assertEq(rewardsVault.totalVaultRewards(), rewards - vaultA.accounting.totalClaimedRewards);
+
+        assertEq(rewardsVault.totalPaidRewards(), vaultA.accounting.totalClaimedRewards);
     }
 
     function testUserAT06CreatorFee() public {
@@ -1433,6 +1440,9 @@ contract StateT10Test is StateT10 {
         
         assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
         assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
+
+        assertEq(rewardsVault.totalPaidRewards(), (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
+
     }
 
     function testUserCT10() public {
@@ -1611,6 +1621,9 @@ contract StateVaultAEndsTest is StateVaultAEnds {
         
         assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
         assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
+
+        assertEq(rewardsVault.totalPaidRewards(), (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
+
     } 
 
     function testUserAVaultAEnds() public {
@@ -1770,6 +1783,9 @@ contract StateT2_592_003Test is StateT2_592_003 {
         
         assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
         assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
+
+        assertEq(rewardsVault.totalPaidRewards(), (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
+
     }
 
     function testUserBCanUnstake() public {
@@ -1955,6 +1971,8 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         
         assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
         assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
+
+        assertEq(rewardsVault.totalPaidRewards(), (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
     } 
 
     // claimFees + claimRewards
@@ -2015,6 +2033,8 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         
         assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
         assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
+
+        assertEq(rewardsVault.totalPaidRewards(), (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
     }
 
 }

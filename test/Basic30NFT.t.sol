@@ -175,6 +175,7 @@ abstract contract StateZero is Test {
 
         // check rewards vault
         assertEq(rewardsVault.totalVaultRewards(), rewards);
+        assertEq(rewardsVault.totalPaidRewards(), 0);
 
         // check time
         assertEq(block.timestamp, 0);
@@ -1659,6 +1660,8 @@ contract StateVaultAEndsTest is StateVaultAEnds {
         
         assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
         assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
+
+        assertEq(rewardsVault.totalPaidRewards(), (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
     }
 
     function testUserAVaultAHasEnded() public {
@@ -1807,7 +1810,7 @@ contract StateVaultAEndsTest is StateVaultAEnds {
 //      vault C ends
 //      poolAllocPOints should be decremented to 0.
 //      userC claim all rewards, fees and unstake their assets.
-abstract contract StateTVaultCEnds is StateVaultAEndTime {
+abstract contract StateVaultCEnds is StateVaultAEnds {
 
     function setUp() public virtual override {
         super.setUp();
@@ -1821,7 +1824,7 @@ abstract contract StateTVaultCEnds is StateVaultAEndTime {
     }   
 }
 
-contract StateTVaultCEndsTest is StateTVaultCEnds {
+contract StateVaultCEndsTest is StateVaultCEnds {
 
     function testPoolVaultCEndTime() public {
 
@@ -1918,7 +1921,9 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         
         assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
         assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
-       
+
+        assertEq(rewardsVault.totalPaidRewards(), (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
+
     }
 
     function testUserCVaultCHasEnded() public {
