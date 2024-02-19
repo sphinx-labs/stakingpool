@@ -1806,7 +1806,7 @@ contract StateVaultAEndsTest is StateVaultAEnds {
    
 }
 
-//Note:  t=2_592_007 | 7 + 30 days
+//Note: t=2_592_007 | 7 + 30 days
 //      vault C ends
 //      poolAllocPOints should be decremented to 0.
 //      userC claim all rewards, fees and unstake their assets.
