@@ -734,6 +734,11 @@ contract StateT05Test is StateT05 {
 
         assertEq(vaultA.accounting.totalClaimedRewards, 2.3e18 + 3e17);          //userA: 2.3e18, userB: 3e17
 
+        
+        // check vault balances: initial rewards - claimedRewards
+        uint256 vaultBalance = mocaToken.balanceOf(address(rewardsVault));
+        assertEq(vaultBalance, rewards - vaultA.accounting.totalClaimedRewards);                  
+        assertEq(rewardsVault.totalVaultRewards(), rewards - vaultA.accounting.totalClaimedRewards);
     }
 
 
@@ -766,10 +771,6 @@ contract StateT05Test is StateT05 {
         assertEq(userA.accNftStakingRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
         assertEq(userA.claimedCreatorRewards, 0);
-
-        // check token balances
-        uint256 userAMoca = mocaToken.balanceOf(address(0xA));
-        assertEq(mocaToken.balanceOf(0xA), userA.claimedStakingRewards);
     }
 
     function testUserBT05() public {
@@ -899,6 +900,11 @@ contract StateT06Test is StateT06 {
 
         assertEq(vaultA.accounting.totalClaimedRewards, 2.3e18 + 3e17 + 3e17);          //userA: 2.3e18, userB: 3e17, creatorFee: 3e17
 
+        // check vault balances: initial rewards - claimedRewards
+        uint256 vaultBalance = mocaToken.balanceOf(address(rewardsVault));
+        
+        assertEq(vaultBalance, rewards - vaultA.accounting.totalClaimedRewards);                  
+        assertEq(rewardsVault.totalVaultRewards(), rewards - vaultA.accounting.totalClaimedRewards);
     }
 
     function testUserAT06CreatorFee() public {
@@ -936,6 +942,7 @@ contract StateT06Test is StateT06 {
         assertEq(userA.accNftStakingRewards, 0);
         assertEq(userA.claimedNftRewards, 0);
         assertEq(userA.claimedCreatorRewards, 3e17);        // 3e17: creatorFee
+
     }
 }
 
@@ -1419,6 +1426,13 @@ contract StateT10Test is StateT10 {
 
         assertEq(vaultC.accounting.totalClaimedRewards/1e15, 1.222e18/1e15);     
       
+        // check vault balances: initial rewards - claimedRewards
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+        uint256 vaultBalance = mocaToken.balanceOf(address(rewardsVault));
+        
+        assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
+        assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
     }
 
     function testUserCT10() public {
@@ -1589,6 +1603,14 @@ contract StateVaultAEndsTest is StateVaultAEnds {
         
         assertEq(claimedRewards/1e20, calcClaimedRewards/1e20);                  
         assertEq(vaultA.accounting.totalClaimedRewards, claimedRewards);                   //userA: 6.48e23, userB: 3e17, creatorFee: 3e17
+
+        // check vault balances: initial rewards - claimedRewards
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+        uint256 vaultBalance = mocaToken.balanceOf(address(rewardsVault));
+        
+        assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
+        assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
     } 
 
     function testUserAVaultAEnds() public {
@@ -1740,6 +1762,14 @@ contract StateT2_592_003Test is StateT2_592_003 {
         assertEq(userBInfo.accNftStakingRewards, 0);
         assertEq(userBInfo.claimedNftRewards, 0);
         assertEq(userBInfo.claimedCreatorRewards, 0);        // 3e17: creatorFee  
+
+        // check vault balances: initial rewards - claimedRewards
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+        uint256 vaultBalance = mocaToken.balanceOf(address(rewardsVault));
+        
+        assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
+        assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
     }
 
     function testUserBCanUnstake() public {
@@ -1917,6 +1947,14 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         assertEq(vaultC.accounting.bonusBall/1e14, 5.555e17/1e14); 
         
         assertEq(vaultC.accounting.totalClaimedRewards/1e15, 1.222e18/1e15);                   //userA: 6.48e23, userB: 3e17, creatorFee: 3e17
+
+        // check vault balances: initial rewards - claimedRewards
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+        uint256 vaultBalance = mocaToken.balanceOf(address(rewardsVault));
+        
+        assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
+        assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
     } 
 
     // claimFees + claimRewards
@@ -1968,15 +2006,15 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         // check token balance
         uint256 rewardsFeesAndBonusBall = vaultC.accounting.totalClaimedRewards;
         assertEq(mocaToken.balanceOf(userC), vaultC.accounting.totalClaimedRewards + userCPrinciple);
-        // mocaBal: 1166479955555555555555472 [1.166e24]
-        // claimedRewards: 1166399955555555555555472 [1.166e24]
-        // staked amount: 8e19
 
-        /**
-        events
-         claimFees: 129599933333333333333332 [1.295e23] -- creator
-         claimRewards:  1036798800000000000000000 [1.036e24]
-        */
+
+        // check vault balances: initial rewards - claimedRewards
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+        uint256 vaultBalance = mocaToken.balanceOf(address(rewardsVault));
+        
+        assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
+        assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
     }
 
 }

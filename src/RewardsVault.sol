@@ -15,6 +15,8 @@ contract RewardsVault is AccessControl {
 
     address public pool;
     uint256 public totalVaultRewards;
+    uint256 public totalPaidRewards;
+
     IERC20 public immutable REWARD_TOKEN;
     
     // roles
@@ -73,6 +75,9 @@ contract RewardsVault is AccessControl {
      */
     function payRewards(address to, uint256 amount) external {
         require(msg.sender == pool, "Only Pool");
+
+        totalVaultRewards -= amount;
+        totalPaidRewards += amount;
 
         REWARD_TOKEN.safeTransfer(to, amount);
     }

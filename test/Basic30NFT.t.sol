@@ -1509,7 +1509,7 @@ contract StateT10Test is StateT10 {
 //      vaultA ends
 //      userA and userB claim all rewards, fees and unstake their assets.
 //      poolAllocPOints should be decremented; reflecting only vaultC AllocPoints
-abstract contract StateVaultAEndTime is StateT10 {
+abstract contract StateVaultAEnds is StateT10 {
 
     function setUp() public virtual override {
         super.setUp();
@@ -1530,7 +1530,7 @@ abstract contract StateVaultAEndTime is StateT10 {
     }
 }
 
-contract StateVaultAEndTimeTest is StateVaultAEndTime {
+contract StateVaultAEndsTest is StateVaultAEnds {
 
     function testPoolVaultAEndTime() public {
 
@@ -1651,6 +1651,14 @@ contract StateVaultAEndTimeTest is StateVaultAEndTime {
 
         assertEq(vaultA.accounting.totalClaimedRewards/1e21, 1.620e24/1e21);        
        
+
+        // check vault balances: initial rewards - claimedRewards
+        DataTypes.Vault memory vaultC = getVaultStruct(vaultIdC);
+
+        uint256 vaultBalance = mocaToken.balanceOf(address(rewardsVault));
+        
+        assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
+        assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
     }
 
     function testUserAVaultAHasEnded() public {
@@ -1902,6 +1910,14 @@ contract StateTVaultCEndsTest is StateTVaultCEnds {
         assertEq(vaultC.accounting.bonusBall, 4e17); 
 
         assertEq(vaultC.accounting.totalClaimedRewards/1e20,  9.720e23/1e20);    
+
+        // check vault balances: initial rewards - claimedRewards
+        DataTypes.Vault memory vaultA = getVaultStruct(vaultIdA);
+
+        uint256 vaultBalance = mocaToken.balanceOf(address(rewardsVault));
+        
+        assertEq(vaultBalance, rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));                  
+        assertEq(rewardsVault.totalVaultRewards(), rewards - (vaultA.accounting.totalClaimedRewards + vaultC.accounting.totalClaimedRewards));
        
     }
 
