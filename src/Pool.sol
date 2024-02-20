@@ -19,13 +19,13 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     using SafeERC20 for IERC20;
 
     // rp contract interface, token interface, NFT interface,
-    IERC20 public STAKED_TOKEN;  
-    IERC20 public LOCKED_NFT_TOKEN;  
+    IERC20 public immutable STAKED_TOKEN;  
+    IERC20 public immutable LOCKED_NFT_TOKEN;  
 
-    IRewardsVault public REWARDS_VAULT;
-    IERC20 public REWARD_TOKEN;
+    IRewardsVault public immutable REWARDS_VAULT;
+    IERC20 public immutable REWARD_TOKEN;
 
-    address public REALM_POINTS;
+    address public immutable REALM_POINTS;
 
     // token dp
     uint256 public constant PRECISION = 18;                       
@@ -75,6 +75,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
     event CreatorFeeFactorUpdated(bytes32 indexed vaultId, uint256 indexed oldCreatorFeeFactor, uint256 indexed newCreatorFeeFactor);
     event NftFeeFactorUpdated(bytes32 indexed vaultId, uint256 indexed oldCreatorFeeFactor, uint256 indexed newCreatorFeeFactor);
+
+    event RecoveredTokens(address indexed token, address indexed target, uint256 indexed amount);
 
 
 //-------------------------------mappings-------------------------------------------
@@ -130,7 +132,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     //////////////////////////////////////////////////////////////*/
 
     ///@dev create empty vault, without need for RP
-    function createFreeVault() external {}
+    function createFreeVault() external {   }
 
     ///@dev creates empty vault
     function createVault(address onBehalfOf, uint8 salt, DataTypes.VaultDuration duration, uint256 creatorFee, uint256 nftFee) external whenStarted whenNotPaused {
@@ -479,7 +481,11 @@ contract Pool is ERC20, Pausable, Ownable2Step {
                                 INTERNAL
     //////////////////////////////////////////////////////////////*/
     
-    // updates poolIndex + poolLastUpdateTimestamp
+    /**
+     * @dev Check if pool index is in need of updating, to bring it in-line with present time
+     * @return poolAccounting struct, 
+               currentTimestamp: either lasUpdateTimestamp or block.timestamp
+     */
     function _updatePoolIndex() internal returns (DataTypes.PoolAccounting memory, uint256) {
         DataTypes.PoolAccounting memory pool_ = pool;
         
@@ -507,6 +513,16 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         return (pool_, currentTimestamp);
     }
 
+    /**
+     * @dev Calculates latest pool index. Pool index represents accRewardsPerAllocPoint since startTime.
+     * @param currentPoolIndex Latest pool index as per previous update
+     * @param emissionPerSecond Reward tokens emitted per second (in wei)
+     * @param lastUpdateTimestamp Time at which previous update occured
+     * @param totalBalance Total allocPoints of the pool 
+     * @return nextPoolIndex: Updated pool index, 
+               currentTimestamp: either lasUpdateTimestamp or block.timestamp, 
+               emittedRewards: rewards emitted from lastUpdateTimestamp till now
+     */
     function _calculatePoolIndex(uint256 currentPoolIndex, uint256 emissisonPerSecond, uint256 lastUpdateTimestamp, uint256 totalBalance) internal view returns (uint256, uint256, uint256) {
         if (
             emissisonPerSecond == 0                          // 0 emissions. no rewards setup.
@@ -528,8 +544,13 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         return (nextPoolIndex, currentTimestamp, emittedRewards);
     }
 
-    ///@dev balance == allocPoints
-    ///@dev vaultIndex/userIndex == userIndex
+    /**
+     * @dev Calculates accrued rewards from prior index to current index. 
+            Indexes are either rewardsAccPerToken or rewardsAccPerAllocPoint.
+     * @param balance Specified as either tokenBalance or allocPoints 
+     * @param currentIndex Latest index, reflective of current conditions
+     * @param priorIndex Index as per the lastTimestamp or last instance it was updated
+     */
     function _calculateRewards(uint256 balance, uint256 currentIndex, uint256 priorIndex) internal pure returns (uint256) {
         return (balance * (currentIndex - priorIndex)) / 10 ** PRECISION;
     }
@@ -631,8 +652,8 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         return (userInfo, vault);
     }
         
-
-    function _cache(bytes32 vaultId, address onBehalfOf) internal view returns(DataTypes.UserInfo memory, DataTypes.Vault memory){
+    ///@dev cache vault and user structs from storage to memory. checks that vault exists, else reverts.
+    function _cache(bytes32 vaultId, address onBehalfOf) internal view returns(DataTypes.UserInfo memory, DataTypes.Vault memory) {
         
         DataTypes.Vault memory vault = vaults[vaultId];
         if(vault.creator == address(0)) revert Errors.NonExistentVault(vaultId);
@@ -656,26 +677,81 @@ contract Pool is ERC20, Pausable, Ownable2Step {
                             POOL MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
-    ///@dev update Index?
+    /**
+     * @notice Pause pool
+     */
     function pause() external onlyOwner {
         _pause();
     }
 
+    /**
+     * @notice Unpause pool
+     */
     function unpause() external onlyOwner {
         _unpause();
     }
 
-    function freeze() external onlyOwner {
+
+    /**
+     * @notice To freeze the pool in the event of something untoward occuring
+     * @dev Only callable from a paused state, affirming that staking should not resume
+     *      Nothing to be updated. Freeze as is.
+            Enables emergencyExit() to be called.
+     */
+    function freeze() external onlyOwner whenPaused {
         require(isFrozen == false, "Pool is frozen");
         
-        // update pool?
-
         isFrozen = true;
 
-        // emit
+        emit PoolFrozen(block.timestamp);
     }
 
-    ///@dev withdraw only principal. indexes are not updated.
+
+    /**
+     * @notice To increase the duration of staking period and/or the rewards emitted
+     * @dev Can increase rewards, duration MAY be extended. cannot reduce.
+     * @param amount Address of token contract
+     * @param duration Recepient of tokens
+     */
+    function updateEmission(uint256 amount, uint256 duration) external onlyOwner {
+        // either amount or duration could be 0. 
+        if(amount == 0 && duration == 0) revert Errors.InvalidEmissionParameters();
+
+        // get endTime - ensure its not exceeded
+        uint256 endTime_ = endTime;
+        require(block.timestamp < endTime_, "Staking over");
+
+        // close the books
+        (DataTypes.PoolAccounting memory pool_, uint256 latestPoolTimestamp) = _updatePoolIndex();
+
+        // updated values: amount or duration could be 0 
+        uint256 unemittedRewards = pool_.totalPoolRewards - pool_.totalPoolRewardsEmitted;
+
+        unemittedRewards += amount;
+        uint256 newDurationLeft = endTime_ + duration - block.timestamp;
+        
+        // recalc: eps, endTime
+        pool_.emissisonPerSecond = unemittedRewards / newDurationLeft;
+        uint256 newEndTime = endTime_ + duration;
+
+        // update storage
+        pool = pool_;
+        endTime = newEndTime;
+
+        emit DistributionUpdated(pool_.emissisonPerSecond, newEndTime);
+    }
+    
+
+    /*//////////////////////////////////////////////////////////////
+                                RECOVER
+    //////////////////////////////////////////////////////////////*/
+    
+    /**
+     * @notice For users to recover their principal assets in a black swan event
+     * @dev Rewards and fees are not withdrawn; indexes are not updated
+     * @param vaultId Address of token contract
+     * @param onBehalfOf Recepient of tokens
+     */
     function emergencyExit(bytes32 vaultId, address onBehalfOf) external whenStarted whenPaused {
         require(isFrozen = true, "Pool not frozen");
 
@@ -724,34 +800,18 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     }
 
 
-    ///@dev addRewards, duration MAY be extended. cannot reduce.
-    function updateEmission(uint256 amount, uint256 duration) external onlyOwner {
-        // either amount or duration could be 0. 
-        if(amount == 0 && duration == 0) revert Errors.InvalidEmissionParameters();
+    /**
+     * @notice Recover random tokens accidentally sent to the vault
+     * @param tokenAddress Address of token contract
+     * @param receiver Recepient of tokens
+     * @param amount Amount to retrieve
+     */
+    function recoverERC20(address tokenAddress, address receiver, uint256 amount) external onlyOwner whenPaused {
+        emit RecoveredTokens(tokenAddress, receiver, amount);
 
-        uint256 endTime_ = endTime;
-        require(block.timestamp < endTime_, "Staking over");
-
-        // close the books
-        (DataTypes.PoolAccounting memory pool_, uint256 latestPoolTimestamp) = _updatePoolIndex();
-
-        // updated values: amount or duration could be 0 
-        uint256 unemittedRewards = pool_.totalPoolRewards - pool_.totalPoolRewardsEmitted;
-
-        unemittedRewards += amount;
-        uint256 newDurationLeft = endTime_ + duration - block.timestamp;
-        
-        // recalc: eps, endTime
-        pool_.emissisonPerSecond = unemittedRewards / newDurationLeft;
-        uint256 newEndTime = endTime_ + duration;
-
-        // update storage
-        pool = pool_;
-        endTime = newEndTime;
-
-        emit DistributionUpdated(pool_.emissisonPerSecond, newEndTime);
+        IERC20(tokenAddress).safeTransfer(receiver, amount);
     }
-    
+
 
 
     /*//////////////////////////////////////////////////////////////
@@ -768,6 +828,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
 
 }
+
+
+
 /**
 
 make getter fns:

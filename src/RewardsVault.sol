@@ -26,7 +26,7 @@ contract RewardsVault is AccessControl {
     // events
     event Deposit(address indexed from, uint256 amount);
     event Withdraw(address indexed to, uint256 amount);
-    event Recovered(address indexed token, address indexed target, uint256 amount);
+    event RecoveredTokens(address indexed token, address indexed target, uint256 indexed amount);
     event PoolSet(address indexed oldPool, address indexed newPool);
 
     constructor(IERC20 rewardToken, address moneyManager, address admin) {
@@ -100,13 +100,14 @@ contract RewardsVault is AccessControl {
     /**
      * @notice Recover random tokens accidentally sent to the vault
      * @param tokenAddress Address of token contract
+     * @param receiver Recepient of tokens 
      * @param amount Amount to retrieve
      */
-    function recoverERC20(address tokenAddress, address target, uint256 amount) external onlyRole(ADMIN_ROLE) {
+    function recoverERC20(address tokenAddress, address receiver, uint256 amount) external onlyRole(ADMIN_ROLE) {
         require(tokenAddress != address(REWARD_TOKEN), "Out-of-scope");
         
         IERC20(tokenAddress).safeTransfer(target, amount);
-        emit Recovered(tokenAddress, target, amount);
+        emit RecoveredTokens(tokenAddress, receiver, amount);
     }
 
 

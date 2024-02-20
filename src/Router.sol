@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import {IERC20Permit} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {IPool} from "./interfaces/IPool.sol";
+import {RevertMsgExtractor} from "./utils/RevertMsgExtractor.sol";
+import {SafeERC20} from "./../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import {IERC20Permit} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
 contract Router {
-    
+    using SafeERC20 for IERC20;
+
     address public STAKED_TOKEN;  
     address public LOCKED_NFT_TOKEN;  
 
@@ -23,24 +27,11 @@ contract Router {
         for (uint256 i; i < calls.length; i++) {
 
             (bool success, bytes memory result) = address(this).delegatecall(calls[i]);
-            if (!success) revert(_getRevertMsg(result));
+            if (!success) revert(RevertMsgExtractor.getRevertMsg(result));
             results[i] = result;
         }
     }
 
-
-    /// @dev Helper function to extract a useful revert message from a failed call.
-    /// If the returned data is malformed or not correctly abi encoded then this call can fail itself.
-    function _getRevertMsg(bytes memory _returnData) internal pure returns (string memory) {
-        // If the _res length is less than 68, then the transaction failed silently (without a revert message)
-        if (_returnData.length < 68) return "Transaction reverted silently";
-
-        assembly {
-            // Slice the sighash.
-            _returnData := add(_returnData, 0x04)
-        }
-        return abi.decode(_returnData, (string)); // All that remains is the revert string
-    }
 
     function stake(
         bytes32 vaultId,
