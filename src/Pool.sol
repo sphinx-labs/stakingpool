@@ -27,13 +27,17 @@ contract Pool is ERC20, Pausable, Ownable2Step {
 
     address public REALM_POINTS;
 
+    // token dp
+    uint256 public constant PRECISION = 18;                       
+    
     // multipliers
     uint256 public constant nftMultiplier = 2;
     uint256 public constant vault60Multiplier = 2;
     uint256 public constant vault90Multiplier = 3;
     uint256 public constant vaultBaseAllocPoints = 100 ether;     // need 18 dp precision for pool index calc
 
-    uint256 public constant PRECISION = 18;                       // token dp
+    // staking limits
+    uint256 public constant nftStakingLimit = 3; 
     
     // timing
     uint256 public immutable startTime;           // start time
@@ -234,8 +238,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         // update indexes and book all prior rewards
         (DataTypes.UserInfo memory userInfo, DataTypes.Vault memory vault) = _updateUserIndexes(onBehalfOf, userInfo_, vault_);
 
-        // if vault matured, no staking
-        if(vault.endTime <= block.timestamp) revert Errors.VaultMatured(vaultId);
+        // sanity checks: if vault matured, no staking | new nft staked amount cannot exceed limit
+        if(vault.endTime <= block.timestamp) revert Errors.VaultMatured(vaultId);            
+        if(vault.stakedNfts + amount > nftStakingLimit) revert Errors.NftStakingLimitExceeded(vaultId, vault.stakedNfts);
 
         // update user & book 1st stake incentive
         userInfo.stakedNfts += amount;
