@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Errors} from './Errors.sol';
 import {DataTypes} from './DataTypes.sol';
+import {RevertMsgExtractor} from "./utils/RevertMsgExtractor.sol";
 
 import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20, IERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -77,6 +78,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
     event NftFeeFactorUpdated(bytes32 indexed vaultId, uint256 indexed oldCreatorFeeFactor, uint256 indexed newCreatorFeeFactor);
 
     event RecoveredTokens(address indexed token, address indexed target, uint256 indexed amount);
+    event PoolFrozen(uint256 indexed timestamp);
 
 
 //-------------------------------mappings-------------------------------------------
@@ -126,7 +128,41 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         emit DistributionUpdated(pool_.emissisonPerSecond, endTime);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                          BATCHING AND PERMIT
+    //////////////////////////////////////////////////////////////*/
 
+    /// @dev Allows batched call to self (this contract).
+    /// @param calls An array of inputs for each call.
+    function batch(bytes[] calldata calls) external payable returns (bytes[] memory results) {
+        results = new bytes[](calls.length);
+
+        for (uint256 i; i < calls.length; i++) {
+
+            (bool success, bytes memory result) = address(this).delegatecall(calls[i]);
+            if (!success) revert(RevertMsgExtractor.getRevertMsg(result));
+            results[i] = result;
+        }
+    }
+
+/*
+    /// @dev Execute an ERC2612 permit for the selected token
+    // https://www.trust-security.xyz/post/permission-denied
+    function forwardPermit(address owner, address spender, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external payable {
+        
+        // Try permit() before allowance check to advance nonce if possible
+        try STAKED_TOKEN.permit(owner, spender, amount, deadline, v, r, s) {
+            return;
+        } catch {
+            //Permit potentially got frontran. COntinue anyways if allowance is insufficient
+            if (STAKED_TOKEN.allowance(owner, spender) >= amount) {
+                return;
+            }
+        } 
+
+        revert("Permit failure");
+    }
+*/
     /*//////////////////////////////////////////////////////////////
                                 EXTERNAL
     //////////////////////////////////////////////////////////////*/
@@ -523,9 +559,9 @@ contract Pool is ERC20, Pausable, Ownable2Step {
                currentTimestamp: either lasUpdateTimestamp or block.timestamp, 
                emittedRewards: rewards emitted from lastUpdateTimestamp till now
      */
-    function _calculatePoolIndex(uint256 currentPoolIndex, uint256 emissisonPerSecond, uint256 lastUpdateTimestamp, uint256 totalBalance) internal view returns (uint256, uint256, uint256) {
+    function _calculatePoolIndex(uint256 currentPoolIndex, uint256 emissionPerSecond, uint256 lastUpdateTimestamp, uint256 totalBalance) internal view returns (uint256, uint256, uint256) {
         if (
-            emissisonPerSecond == 0                          // 0 emissions. no rewards setup.
+            emissionPerSecond == 0                          // 0 emissions. no rewards setup.
             || totalBalance == 0                             // nothing has been staked
             || lastUpdateTimestamp == block.timestamp        // assetIndex already updated
             || lastUpdateTimestamp > endTime                 // distribution has ended
@@ -537,7 +573,7 @@ contract Pool is ERC20, Pausable, Ownable2Step {
         uint256 currentTimestamp = block.timestamp > endTime ? endTime : block.timestamp;
         uint256 timeDelta = currentTimestamp - lastUpdateTimestamp;
         
-        uint256 emittedRewards = emissisonPerSecond * timeDelta;
+        uint256 emittedRewards = emissionPerSecond * timeDelta;
 
         uint256 nextPoolIndex = ((emittedRewards * 10 ** PRECISION) / totalBalance) + currentPoolIndex;
     

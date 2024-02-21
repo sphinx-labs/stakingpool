@@ -106,7 +106,7 @@ contract RewardsVault is AccessControl {
     function recoverERC20(address tokenAddress, address receiver, uint256 amount) external onlyRole(ADMIN_ROLE) {
         require(tokenAddress != address(REWARD_TOKEN), "Out-of-scope");
         
-        IERC20(tokenAddress).safeTransfer(target, amount);
+        IERC20(tokenAddress).safeTransfer(receiver, amount);
         emit RecoveredTokens(tokenAddress, receiver, amount);
     }
 
