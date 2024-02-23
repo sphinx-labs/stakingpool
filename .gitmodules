@@ -4,3 +4,6 @@
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
+[submodule "lib/sphinx"]
+	path = lib/sphinx
+	url = https://github.com/sphinx-labs/sphinx
